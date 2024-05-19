@@ -11,7 +11,7 @@ import (
 )
 
 // Post struct to map the JSON data
-type Post1 struct {
+type Post struct {
 	UserId int    `json:"userId"`
 	Id     int    `json:"id"`
 	Title  string `json:"title"`
@@ -19,7 +19,7 @@ type Post1 struct {
 }
 
 // Template variables
-type HomePageVars1 struct {
+type HomePageVars struct {
 	Title       string
 	Posts       []Post
 	CharFreq    map[rune]int
@@ -29,14 +29,14 @@ type HomePageVars1 struct {
 }
 
 // Custom template functions
-var funcMap1 = template.FuncMap{
+var funcMap = template.FuncMap{
 	"toJSON": func(v interface{}) string {
 		data, _ := json.Marshal(v)
 		return string(data)
 	},
 }
 
-var templates1 = template.Must(template.New("").Funcs(funcMap).ParseFiles("home.html"))
+var templates = template.Must(template.New("").Funcs(funcMap).ParseFiles("home.html"))
 
 func main() {
 	http.HandleFunc("/", HomeHandler)
@@ -49,7 +49,7 @@ func main() {
 }
 
 // HomeHandler serves the home page
-func HomeHandler1(w http.ResponseWriter, r *http.Request) {
+func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	posts, err := readPostsFromFile()
 	if err != nil {
 		renderTemplate(w, HomePageVars{Title: "Home", Error: "Failed to read posts: " + err.Error()})
@@ -59,7 +59,7 @@ func HomeHandler1(w http.ResponseWriter, r *http.Request) {
 }
 
 // FetchPostsHandler fetches posts and writes them to a file
-func FetchPostsHandler1(w http.ResponseWriter, r *http.Request) {
+func FetchPostsHandler(w http.ResponseWriter, r *http.Request) {
 	posts, err := fetchPosts()
 	if err != nil {
 		renderTemplate(w, HomePageVars{Title: "Error", Error: "Failed to fetch posts: " + err.Error()})
@@ -75,7 +75,7 @@ func FetchPostsHandler1(w http.ResponseWriter, r *http.Request) {
 }
 
 // AnalyzePostsHandler reads the posts file and analyzes character frequency
-func AnalyzePostsHandler1(w http.ResponseWriter, r *http.Request) {
+func AnalyzePostsHandler(w http.ResponseWriter, r *http.Request) {
 	count, err := countCharacters("posts.json")
 	if err != nil {
 		renderTemplate(w, HomePageVars{Title: "Error", Error: "Failed to analyze posts: " + err.Error()})
@@ -86,7 +86,7 @@ func AnalyzePostsHandler1(w http.ResponseWriter, r *http.Request) {
 }
 
 // AddPostHandler allows the user to add a new post
-func AddPostHandler1(w http.ResponseWriter, r *http.Request) {
+func AddPostHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		var post Post
 		post.UserId = 1 // You can set this as needed
@@ -113,7 +113,7 @@ func AddPostHandler1(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func fetchPosts1() ([]Post, error) {
+func fetchPosts() ([]Post, error) {
 	resp, err := http.Get("https://jsonplaceholder.typicode.com/posts")
 	if err != nil {
 		return nil, err
@@ -127,7 +127,7 @@ func fetchPosts1() ([]Post, error) {
 	return posts, nil
 }
 
-func writePostsToFile1(posts []Post) error {
+func writePostsToFile(posts []Post) error {
 	file, err := os.Create("posts.json")
 	if err != nil {
 		return err
@@ -141,7 +141,7 @@ func writePostsToFile1(posts []Post) error {
 	return nil
 }
 
-func readPostsFromFile1() ([]Post, error) {
+func readPostsFromFile() ([]Post, error) {
 	data, err := ioutil.ReadFile("posts.json")
 	if err != nil {
 		return nil, err
@@ -154,7 +154,7 @@ func readPostsFromFile1() ([]Post, error) {
 	return posts, nil
 }
 
-func countCharacters1(filePath string) (map[rune]int, error) {
+func countCharacters(filePath string) (map[rune]int, error) {
 	data, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return nil, err
@@ -178,13 +178,13 @@ func countCharacters1(filePath string) (map[rune]int, error) {
 	return charCount, nil
 }
 
-func renderTemplate1(w http.ResponseWriter, vars HomePageVars) {
+func renderTemplate(w http.ResponseWriter, vars HomePageVars) {
 	if err := templates.ExecuteTemplate(w, "home.html", vars); err != nil {
 		http.Error(w, "Failed to render template", http.StatusInternalServerError)
 	}
 }
 
-func generatePostID1() int {
+func generatePostID() int {
 	posts, _ := readPostsFromFile()
 	maxID := 0
 	for _, post := range posts {
