@@ -1,7 +1,7 @@
 # Post Viewer and Analyzer with Go
 
 <p align="center">
-   <img src="post-ui.png" alt="Post Viewer and Analyzer" width="100%" style="border-radius: 8px;">
+   <img src="assets/post-ui.png" alt="Post Viewer and Analyzer" width="100%" style="border-radius: 8px;">
 </p>
 
 ## Introduction
