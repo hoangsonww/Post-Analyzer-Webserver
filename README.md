@@ -1,5 +1,9 @@
 # Post Viewer and Analyzer with Go
 
+<p align="center">
+   <img src="post-ui.png" alt="Post Viewer and Analyzer" width="100%" style="border-radius: 8px;">
+</p>
+
 ## Introduction
 The Post Viewer and Analyzer is a web-based application built with Go. It serves a web interface that allows users to fetch posts from the JSONPlaceholder API, save these posts to a file, and perform a character frequency analysis on the saved data. This application demonstrates the use of Go for server-side web development, including handling HTTP requests, processing JSON, and rendering HTML templates.
 
@@ -19,6 +23,7 @@ The Post Viewer and Analyzer is a web-based application built with Go. It serves
 ### Prerequisites
 - Go (version 1.14 or higher recommended)
 - Internet connection (for fetching data from the external API)
+- Web browser (for accessing the application)
 
 ### Installation
 1. **Clone the repository:**
@@ -33,16 +38,20 @@ The Post Viewer and Analyzer is a web-based application built with Go. It serves
    ```
 
 ### Usage
-1. **Open your web browser.**
-2. **Navigate to `http://localhost:8080/` to access the application.**
-3. **Use the following endpoints to interact with the application:**
+1. **Run the application using the steps mentioned above, do not forget to run `go run main.go`!**
+2. **Open your web browser.**
+3. **Navigate to `http://localhost:8080/` to access the application.**
+4. **Use the following endpoints to interact with the application:**
     - **Home Page**: `/`
     - **Fetch Posts**: `/fetch` - Fetches posts from the JSONPlaceholder and saves them to a local file.
     - **Analyze Character Frequency**: `/analyze` - Analyzes the frequency of each character in the saved posts.
+    - **Add Post**: `/add` - Adds a new post to the saved posts.
 
 ## Application Structure
 - **main.go**: Contains all the server-side logic including API calls, concurrency handling, file operations, and web server setup.
 - **home.html**: HTML template file used for rendering the web interface.
+- **go.mod**: Go module file that defines the project's dependencies.
+- **posts.json**: Local JSON file used to store the fetched posts.
 
 ## Contributing
 Contributions are what make the open-source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
@@ -62,5 +71,14 @@ Son Nguyen - [https://github.com/hoangsonww](https://github.com/hoangsonww)
 ## Acknowledgements
 - [Go](https://golang.org/)
 - [JSONPlaceholder](https://jsonplaceholder.typicode.com/)
+  
+---
+<img src="https://img.shields.io/badge/License-MIT-green" alt="License">
+<img src="https://img.shields.io/badge/Go-1.14-blue?style=flat&logo=go" alt="Go version">
+<img src="https://img.shields.io/badge/Status-Completed-orange" alt="Status">
+<img src="https://img.shields.io/badge/Version-1.0.0-blue" alt="Version">
+<img src="https://img.shields.io/badge/Year-2024-lightgrey" alt="Year">
 
 ---
+
+Created with ❤️ by Son Nguyen in 2024.

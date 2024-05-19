@@ -50,7 +50,12 @@ func main() {
 
 // HomeHandler serves the home page
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	renderTemplate(w, HomePageVars{Title: "Home"})
+	posts, err := readPostsFromFile()
+	if err != nil {
+		renderTemplate(w, HomePageVars{Title: "Home", Error: "Failed to read posts: " + err.Error()})
+		return
+	}
+	renderTemplate(w, HomePageVars{Title: "Home", Posts: posts, HasPosts: len(posts) > 0})
 }
 
 // FetchPostsHandler fetches posts and writes them to a file

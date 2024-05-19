@@ -14,16 +14,27 @@
             color: #fff;
             padding: 10px 20px;
             text-align: center;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        a {
-            color: #007bff;
+        .button-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 5px;
+            background-color: #007bff;
+            color: #fff;
             text-decoration: none;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: background-color 0.3s, box-shadow 0.3s;
         }
-        a:hover {
-            text-decoration: underline;
-        }
-        h1, h2 {
-            color: #333;
+        .button:hover {
+            background-color: #0056b3;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         }
         .content {
             margin-top: 20px;
@@ -67,6 +78,7 @@
             padding: 10px 15px;
             border: none;
             cursor: pointer;
+            border-radius: 5px;
         }
         form input[type="submit"]:hover {
             background-color: #004494;
@@ -82,111 +94,129 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-<header>
-    <h1 style="color: white">Welcome to the Post Viewer and Analyzer!</h1>
-</header>
-<div class="content">
-    <p>
-        <a href="/">Home</a> |
-        <a href="/fetch">Fetch Posts</a> |
-        <a href="/analyze">Analyze Character Frequency in Posts</a> |
-        <a href="/add">Add New Post</a>
-    </p>
-    {{if .Error}}
-    <p class="error"><strong>Error:</strong> {{.Error}}</p>
-    {{end}}
-    {{if .HasPosts}}
-    <div class="posts">
-        <h2>Fetched Posts:</h2>
-        {{range .Posts}}
-        <div class="post-item">
-            <strong>{{.Title}}</strong>
-            <p>{{.Body}}</p>
+    <header>
+        <h1 style="color: white">Post Viewer and Analyzer</h1>
+    </header>
+    <div class="button-container">
+        <a href="/" class="button">Home</a>
+        <a href="/fetch" class="button">Fetch Posts</a>
+        <a href="/analyze" class="button">Analyze Character Frequency in Posts</a>
+        <a href="/add" class="button">Add New Post</a>
+    </div>
+    <div class="content">
+        {{if .Error}}
+        <p class="error"><strong>Error:</strong> {{.Error}}</p>
+        {{end}}
+        {{if eq .Title "Home"}}
+        <h2>Welcome to the Post Viewer and Analyzer!</h2>
+        <p>This application allows you to:</p>
+        <ul>
+            <li>Fetch posts from an external API and view them.</li>
+            <li>Analyze character frequency in the posts.</li>
+            <li>Add new posts to the existing list.</li>
+        </ul>
+        {{if .HasPosts}}
+        <h3>Recent Posts:</h3>
+        <div class="posts">
+            {{range .Posts}}
+            <div class="post-item">
+                <strong>{{.Title}}</strong>
+                <p>{{.Body}}</p>
+            </div>
+            {{end}}
         </div>
         {{end}}
-    </div>
-    {{end}}
-    {{if .HasAnalysis}}
-    <div class="analysis">
-        <h2>Character Frequency Analysis:</h2>
-        <div class="char-frequency">
-            <canvas id="charFreqChart"></canvas>
-            <script>
-                const charFreq = {{.CharFreq | toJSON}};
-                const ctx = document.getElementById('charFreqChart').getContext('2d');
-                const labels = Object.keys(charFreq).map(key => String.fromCharCode(key));
-                const data = Object.values(charFreq);
-                const chart = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Character Frequency',
-                            data: data,
-                            backgroundColor: 'rgba(54, 162, 235, 0.5)',
-                            borderColor: 'rgba(54, 162, 235, 1)',
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            x: {
-                                title: {
-                                    display: true,
-                                    text: 'Characters'
+        {{else if eq .Title "Add New Post"}}
+        <form method="post" action="/add">
+            <div>
+                <label for="title">Title:</label>
+                <input type="text" id="title" name="title" required style="border: 1px solid black;">
+            </div>
+            <div>
+                <label for="body">Body:</label>
+                <textarea id="body" name="body" required style="border: 1px solid black;"></textarea>
+            </div>
+            <div>
+                <input type="submit" value="Add Post">
+            </div>
+        </form>
+        {{else if .HasPosts}}
+        <div class="posts">
+            <h2>Fetched Posts:</h2>
+            {{range .Posts}}
+            <div class="post-item">
+                <strong>{{.Title}}</strong>
+                <p>{{.Body}}</p>
+            </div>
+            {{end}}
+        </div>
+        {{end}}
+        {{if .HasAnalysis}}
+        <div class="analysis">
+            <h2>Character Frequency Analysis:</h2>
+            <div class="char-frequency">
+                <canvas id="charFreqChart"></canvas>
+                <script>
+                    const charFreq = {{.CharFreq | toJSON}};
+                    const ctx = document.getElementById('charFreqChart').getContext('2d');
+                    const labels = Object.keys(charFreq).map(key => String.fromCharCode(key));
+                    const data = Object.values(charFreq);
+                    const chart = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Character Frequency',
+                                data: data,
+                                backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                                borderColor: 'rgba(54, 162, 235, 1)',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: 'Characters'
+                                    },
+                                    grid: {
+                                        display: false
+                                    }
                                 },
-                                grid: {
-                                    display: false
+                                y: {
+                                    title: {
+                                        display: true,
+                                        text: 'Frequency'
+                                    },
+                                    beginAtZero: true,
+                                    grid: {
+                                        color: 'rgba(200, 200, 200, 0.2)'
+                                    }
                                 }
                             },
-                            y: {
-                                title: {
+                            plugins: {
+                                legend: {
                                     display: true,
-                                    text: 'Frequency'
-                                },
-                                beginAtZero: true,
-                                grid: {
-                                    color: 'rgba(200, 200, 200, 0.2)'
+                                    position: 'top'
                                 }
                             }
-                        },
-                        plugins: {
-                            legend: {
-                                display: true,
-                                position: 'top'
-                            }
                         }
-                    }
-                });
-            </script>
-            <div>
-                <h3>Character Frequencies:</h3>
-                <div class="char-frequency">
-                    {{range $key, $value := .CharFreq}}
-                    <p>'{{printf "%q" $key}}': {{$value}}</p>
-                    {{end}}
+                    });
+                </script>
+                <div>
+                    <h3>Character Frequencies:</h3>
+                    <div class="char-frequency">
+                        {{range $key, $value := .CharFreq}}
+                        <p>'{{printf "%q" $key}}': {{$value}}</p>
+                        {{end}}
+                    </div>
                 </div>
             </div>
         </div>
+        {{end}}
     </div>
-    {{end}}
-    {{if eq .Title "Add New Post"}}
-    <form method="post" action="/add">
-        <div>
-            <label for="title">Title:</label>
-            <input type="text" id="title" name="title" required>
-        </div>
-        <div>
-            <label for="body">Body:</label>
-            <textarea id="body" name="body" required></textarea>
-        </div>
-        <div>
-            <input type="submit" value="Add Post">
-        </div>
-    </form>
-    {{end}}
-</div>
 </body>
 </html>
