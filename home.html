@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{.Title}}</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f4f9;
+            margin: 40px;
+            color: #333;
+        }
+        header {
+            background: #0056b3;
+            color: #fff;
+            padding: 10px 20px;
+            text-align: center;
+        }
+        a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .content {
+            margin-top: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .error {
+            color: #ff0000;
+        }
+        .posts, .analysis {
+            margin-top: 20px;
+        }
+        .post-item {
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .char-frequency {
+            font-family: 'Courier New', monospace;
+        }
+        form {
+            margin-top: 20px;
+        }
+        form div {
+            margin-bottom: 10px;
+        }
+        form label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        form input[type="text"], form textarea {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+        form input[type="submit"] {
+            background-color: #0056b3;
+            color: #fff;
+            padding: 10px 15px;
+            border: none;
+            cursor: pointer;
+        }
+        form input[type="submit"]:hover {
+            background-color: #004494;
+        }
+        #charFreqChart {
+            max-width: 95vw;
+            width: 1200px;
+            height: 400px;
+            max-height: 400px;
+            margin: 20px auto;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<header>
+    <h1 style="color: white">Welcome to the Post Viewer and Analyzer!</h1>
+</header>
+<div class="content">
+    <p>
+        <a href="/">Home</a> |
+        <a href="/fetch">Fetch Posts</a> |
+        <a href="/analyze">Analyze Character Frequency in Posts</a> |
+        <a href="/add">Add New Post</a>
+    </p>
+    {{if .Error}}
+    <p class="error"><strong>Error:</strong> {{.Error}}</p>
+    {{end}}
+    {{if .HasPosts}}
+    <div class="posts">
+        <h2>Fetched Posts:</h2>
+        {{range .Posts}}
+        <div class="post-item">
+            <strong>{{.Title}}</strong>
+            <p>{{.Body}}</p>
+        </div>
+        {{end}}
+    </div>
+    {{end}}
+    {{if .HasAnalysis}}
+    <div class="analysis">
+        <h2>Character Frequency Analysis:</h2>
+        <div class="char-frequency">
+            <canvas id="charFreqChart"></canvas>
+            <script>
+                const charFreq = {{.CharFreq | toJSON}};
+                const ctx = document.getElementById('charFreqChart').getContext('2d');
+                const labels = Object.keys(charFreq).map(key => String.fromCharCode(key));
+                const data = Object.values(charFreq);
+                const chart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Character Frequency',
+                            data: data,
+                            backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Characters'
+                                },
+                                grid: {
+                                    display: false
+                                }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: 'Frequency'
+                                },
+                                beginAtZero: true,
+                                grid: {
+                                    color: 'rgba(200, 200, 200, 0.2)'
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top'
+                            }
+                        }
+                    }
+                });
+            </script>
+            <div>
+                <h3>Character Frequencies:</h3>
+                <div class="char-frequency">
+                    {{range $key, $value := .CharFreq}}
+                    <p>'{{printf "%q" $key}}': {{$value}}</p>
+                    {{end}}
+                </div>
+            </div>
+        </div>
+    </div>
+    {{end}}
+    {{if eq .Title "Add New Post"}}
+    <form method="post" action="/add">
+        <div>
+            <label for="title">Title:</label>
+            <input type="text" id="title" name="title" required>
+        </div>
+        <div>
+            <label for="body">Body:</label>
+            <textarea id="body" name="body" required></textarea>
+        </div>
+        <div>
+            <input type="submit" value="Add Post">
+        </div>
+    </form>
+    {{end}}
+</div>
+</body>
+</html>
