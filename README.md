@@ -5,7 +5,7 @@
 </p>
 
 ## Introduction
-The Post Viewer and Analyzer is a web-based application built with Go. It serves a web interface that allows users to fetch posts from the JSONPlaceholder API, save these posts to a file, and perform a character frequency analysis on the saved data. This application demonstrates the use of Go for server-side web development, including handling HTTP requests, processing JSON, and rendering HTML templates.
+The Post Viewer and Analyzer is a *very* simple web-based application built with Go. It serves a web interface that allows users to fetch posts from the JSONPlaceholder API, save these posts to a file, and perform a character frequency analysis on the saved data. This application demonstrates the use of Go for server-side web development, including handling HTTP requests, processing JSON, and rendering HTML templates.
 
 ## Features
 - **Fetch Data**: Users can fetch posts from the external JSONPlaceholder API.
@@ -28,8 +28,8 @@ The Post Viewer and Analyzer is a web-based application built with Go. It serves
 ### Installation
 1. **Clone the repository:**
    ```
-   git clone https://github.com/yourusername/post-viewer-analyzer.git
-   cd post-viewer-analyzer
+   git clone https://github.com/hoangsonww/Post-Analyzer-Webserver.git
+   cd Post-Analyzer-Webserver
    ```
 
 2. **Run the application:**
@@ -46,6 +46,7 @@ The Post Viewer and Analyzer is a web-based application built with Go. It serves
     - **Fetch Posts**: `/fetch` - Fetches posts from the JSONPlaceholder and saves them to a local file.
     - **Analyze Character Frequency**: `/analyze` - Analyzes the frequency of each character in the saved posts.
     - **Add Post**: `/add` - Adds a new post to the saved posts.
+5. Because it is currently a Backend-focus application, you can greatly enhanced it by adding a polished Frontend to it, such as by using React.js.
 
 ## Application Structure
 - **main.go**: Contains all the server-side logic including API calls, concurrency handling, file operations, and web server setup.
@@ -81,4 +82,4 @@ Son Nguyen - [https://github.com/hoangsonww](https://github.com/hoangsonww)
 
 ---
 
-Created with ❤️ by Son Nguyen in 2024.
+Created with ❤️ by [Son Nguyen](https://github.com/hoangsonww) in 2024.
