@@ -13,10 +13,28 @@ The Post Viewer and Analyzer is a *very* simple web-based application built with
 - **Analyze Data**: Performs a character frequency analysis on the contents of the saved JSON file.
 - **Web Interface**: Simple and user-friendly web interface to interact with the application.
 
+## Live Deployment
+
+The application is deployed on Render and can be accessed using the following link: [Post Viewer and Analyzer](https://post-analyzer-webserver.onrender.com)
+
+Please note that the application is hosted on a free tier and may take some time to load initially.
+
 ## Technology Stack
 - **Go**: All server-side logic is implemented in Go, utilizing its standard library for web server functionality, file I/O, and concurrency.
 - **HTML/CSS**: Front-end layout and styling.
 - **JSONPlaceholder API**: External REST API used for fetching sample post data.
+
+### Why Go?
+- **Concurrency**: Go's built-in support for concurrency makes it easy to write efficient and scalable web servers.
+- **Standard Library**: Go's standard library provides robust support for web development, including an HTTP server, JSON encoding/decoding, and file I/O.
+- **Performance**: Go is known for its fast compilation times and efficient runtime performance, making it a great choice for web applications.
+- **Community**: Go has a large and active community, with extensive documentation and libraries available for web development.
+
+### Example Analysis Result
+
+<p align="center">
+   <img src="assets/analyzed.png" alt="Character Frequency Analysis" width="100%" style="border-radius: 8px;">
+</p>
 
 ## Getting Started
 
