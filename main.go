@@ -39,13 +39,18 @@ var funcMap = template.FuncMap{
 var templates = template.Must(template.New("").Funcs(funcMap).ParseFiles("home.html"))
 
 func main() {
-	http.HandleFunc("/", HomeHandler)
-	http.HandleFunc("/fetch", FetchPostsHandler)
-	http.HandleFunc("/analyze", AnalyzePostsHandler)
-	http.HandleFunc("/add", AddPostHandler)
+    port := os.Getenv("PORT") // Get the PORT from the environment variable
+    if port == "" {
+        port = "8080" // Fallback to 8080 if the PORT environment variable is not set
+    }
 
-	fmt.Println("Server starting at http://localhost:8080/")
-	http.ListenAndServe(":8080", nil)
+    http.HandleFunc("/", HomeHandler)
+    http.HandleFunc("/fetch", FetchPostsHandler)
+    http.HandleFunc("/analyze", AnalyzePostsHandler)
+    http.HandleFunc("/add", AddPostHandler)
+
+    fmt.Printf("Server starting at PORT: %s\n", port)
+    http.ListenAndServe(":"+port, nil)
 }
 
 // HomeHandler serves the home page
@@ -89,7 +94,7 @@ func AnalyzePostsHandler(w http.ResponseWriter, r *http.Request) {
 func AddPostHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		var post Post
-		post.UserId = 1 // You can set this as needed
+		post.UserId = 1
 		post.Id = generatePostID()
 		post.Title = r.FormValue("title")
 		post.Body = r.FormValue("body")
