@@ -1,0 +1,26 @@
+{
+  "name": "Go Dev Container",
+  "image": "mcr.microsoft.com/devcontainers/go:1-21",
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "latest"
+    }
+  },
+  "settings": {
+    "terminal.integrated.defaultProfile.linux": "bash"
+  },
+  "extensions": [
+    "golang.go",
+    "ms-vscode.makefile-tools"
+  ],
+  "postCreateCommand": "go mod tidy",
+  "remoteUser": "vscode",
+  "mounts": [
+    "source=/home/vscode/go,target=/go,type=bind"
+  ],
+  "forwardPorts": [8080, 2345],
+  "containerEnv": {
+    "GOPATH": "/go",
+    "GO111MODULE": "on"
+  }
+}
