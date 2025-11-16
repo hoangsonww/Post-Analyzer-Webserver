@@ -1,201 +1,142 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
-	"html/template"
-	"io/ioutil"
 	"net/http"
 	"os"
-	"sync"
+	"os/signal"
+	"syscall"
+
+	"Post_Analyzer_Webserver/config"
+	"Post_Analyzer_Webserver/internal/handlers"
+	"Post_Analyzer_Webserver/internal/logger"
+	"Post_Analyzer_Webserver/internal/metrics"
+	"Post_Analyzer_Webserver/internal/middleware"
+	"Post_Analyzer_Webserver/internal/storage"
 )
 
-// Post struct to map the JSON data
-type Post struct {
-	UserId int    `json:"userId"`
-	Id     int    `json:"id"`
-	Title  string `json:"title"`
-	Body   string `json:"body"`
-}
-
-// Template variables
-type HomePageVars struct {
-	Title       string
-	Posts       []Post
-	CharFreq    map[rune]int
-	Error       string
-	HasPosts    bool
-	HasAnalysis bool
-}
-
-// Custom template functions
-var funcMap = template.FuncMap{
-	"toJSON": func(v interface{}) string {
-		data, _ := json.Marshal(v)
-		return string(data)
-	},
-}
-
-var templates = template.Must(template.New("").Funcs(funcMap).ParseFiles("home.html"))
-
 func main() {
-    port := os.Getenv("PORT") // Get the PORT from the environment variable
-    if port == "" {
-        port = "8080" // Fallback to 8080 if the PORT environment variable is not set
-    }
-
-    http.HandleFunc("/", HomeHandler)
-    http.HandleFunc("/fetch", FetchPostsHandler)
-    http.HandleFunc("/analyze", AnalyzePostsHandler)
-    http.HandleFunc("/add", AddPostHandler)
-
-    fmt.Printf("Server starting at PORT: %s\n", port)
-    http.ListenAndServe(":"+port, nil)
-}
-
-// HomeHandler serves the home page
-func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	posts, err := readPostsFromFile()
+	// Load configuration
+	cfg, err := config.Load()
 	if err != nil {
-		renderTemplate(w, HomePageVars{Title: "Home", Error: "Failed to read posts: " + err.Error()})
-		return
-	}
-	renderTemplate(w, HomePageVars{Title: "Home", Posts: posts, HasPosts: len(posts) > 0})
-}
-
-// FetchPostsHandler fetches posts and writes them to a file
-func FetchPostsHandler(w http.ResponseWriter, r *http.Request) {
-	posts, err := fetchPosts()
-	if err != nil {
-		renderTemplate(w, HomePageVars{Title: "Error", Error: "Failed to fetch posts: " + err.Error()})
-		return
+		fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
+		os.Exit(1)
 	}
 
-	if err := writePostsToFile(posts); err != nil {
-		renderTemplate(w, HomePageVars{Title: "Error", Error: "Failed to write posts to file: " + err.Error()})
-		return
+	// Initialize logger
+	if err := logger.Init(&cfg.Logging); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
+		os.Exit(1)
 	}
 
-	renderTemplate(w, HomePageVars{Title: "Posts Fetched", Posts: posts, HasPosts: true})
-}
+	logger.Info("starting Post Analyzer Webserver",
+		"environment", cfg.Server.Environment,
+		"port", cfg.Server.Port,
+		"database_type", cfg.Database.Type,
+	)
 
-// AnalyzePostsHandler reads the posts file and analyzes character frequency
-func AnalyzePostsHandler(w http.ResponseWriter, r *http.Request) {
-	count, err := countCharacters("posts.json")
-	if err != nil {
-		renderTemplate(w, HomePageVars{Title: "Error", Error: "Failed to analyze posts: " + err.Error()})
-		return
-	}
-
-	renderTemplate(w, HomePageVars{Title: "Character Analysis", CharFreq: count, HasAnalysis: true})
-}
-
-// AddPostHandler allows the user to add a new post
-func AddPostHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost {
-		var post Post
-		post.UserId = 1
-		post.Id = generatePostID()
-		post.Title = r.FormValue("title")
-		post.Body = r.FormValue("body")
-
-		posts, err := readPostsFromFile()
+	// Initialize storage
+	var store storage.Storage
+	if cfg.Database.Type == "postgres" {
+		store, err = storage.NewPostgresStorage(&cfg.Database)
 		if err != nil {
-			renderTemplate(w, HomePageVars{Title: "Error", Error: "Failed to read posts: " + err.Error()})
-			return
+			logger.Error("failed to initialize PostgreSQL storage", "error", err)
+			os.Exit(1)
 		}
-
-		posts = append(posts, post)
-
-		if err := writePostsToFile(posts); err != nil {
-			renderTemplate(w, HomePageVars{Title: "Error", Error: "Failed to write post to file: " + err.Error()})
-			return
-		}
-
-		renderTemplate(w, HomePageVars{Title: "Post Added", Posts: posts, HasPosts: true})
+		logger.Info("using PostgreSQL storage")
 	} else {
-		renderTemplate(w, HomePageVars{Title: "Add New Post"})
-	}
-}
-
-func fetchPosts() ([]Post, error) {
-	resp, err := http.Get("https://jsonplaceholder.typicode.com/posts")
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	var posts []Post
-	if err := json.NewDecoder(resp.Body).Decode(&posts); err != nil {
-		return nil, err
-	}
-	return posts, nil
-}
-
-func writePostsToFile(posts []Post) error {
-	file, err := os.Create("posts.json")
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	encoder := json.NewEncoder(file)
-	if err := encoder.Encode(posts); err != nil {
-		return err
-	}
-	return nil
-}
-
-func readPostsFromFile() ([]Post, error) {
-	data, err := ioutil.ReadFile("posts.json")
-	if err != nil {
-		return nil, err
-	}
-
-	var posts []Post
-	if err := json.Unmarshal(data, &posts); err != nil {
-		return nil, err
-	}
-	return posts, nil
-}
-
-func countCharacters(filePath string) (map[rune]int, error) {
-	data, err := ioutil.ReadFile(filePath)
-	if err != nil {
-		return nil, err
-	}
-
-	charCount := make(map[rune]int)
-	mu := sync.Mutex{}
-	wg := sync.WaitGroup{}
-
-	for _, byteValue := range string(data) {
-		wg.Add(1)
-		go func(c rune) {
-			defer wg.Done()
-			mu.Lock()
-			charCount[c]++
-			mu.Unlock()
-		}(rune(byteValue))
-	}
-
-	wg.Wait()
-	return charCount, nil
-}
-
-func renderTemplate(w http.ResponseWriter, vars HomePageVars) {
-	if err := templates.ExecuteTemplate(w, "home.html", vars); err != nil {
-		http.Error(w, "Failed to render template", http.StatusInternalServerError)
-	}
-}
-
-func generatePostID() int {
-	posts, _ := readPostsFromFile()
-	maxID := 0
-	for _, post := range posts {
-		if post.Id > maxID {
-			maxID = post.Id
+		store, err = storage.NewFileStorage(cfg.Database.FilePath)
+		if err != nil {
+			logger.Error("failed to initialize file storage", "error", err)
+			os.Exit(1)
 		}
+		logger.Info("using file storage", "path", cfg.Database.FilePath)
 	}
-	return maxID + 1
+	defer store.Close()
+
+	// Initialize handlers
+	h, err := handlers.New(store, cfg)
+	if err != nil {
+		logger.Error("failed to initialize handlers", "error", err)
+		os.Exit(1)
+	}
+	defer h.Close()
+
+	// Setup HTTP router
+	mux := http.NewServeMux()
+
+	// Health and monitoring endpoints
+	mux.HandleFunc("/health", h.Health)
+	mux.HandleFunc("/readiness", h.Readiness)
+	mux.Handle("/metrics", metrics.Handler())
+
+	// Application endpoints
+	mux.HandleFunc("/", h.Home)
+	mux.HandleFunc("/fetch", h.FetchPosts)
+	mux.HandleFunc("/analyze", h.AnalyzePosts)
+	mux.HandleFunc("/add", h.AddPost)
+
+	// Serve static assets
+	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
+
+	// Create rate limiter
+	rateLimiter := middleware.NewRateLimiter(
+		cfg.Security.RateLimitRequests,
+		cfg.Security.RateLimitWindow,
+	)
+
+	// Apply middleware chain
+	handler := middleware.Chain(
+		middleware.RequestID,
+		middleware.Logging,
+		middleware.Recovery,
+		middleware.SecurityHeaders,
+		middleware.CORS(cfg.Security.AllowedOrigins),
+		rateLimiter.Middleware,
+		middleware.MaxBodySize(cfg.Security.MaxBodySize),
+		metrics.Middleware,
+	)(mux)
+
+	// Create HTTP server with production settings
+	server := &http.Server{
+		Addr:         fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port),
+		Handler:      handler,
+		ReadTimeout:  cfg.Server.ReadTimeout,
+		WriteTimeout: cfg.Server.WriteTimeout,
+		IdleTimeout:  cfg.Server.IdleTimeout,
+	}
+
+	// Start server in a goroutine
+	go func() {
+		logger.Info("server listening",
+			"address", server.Addr,
+			"read_timeout", cfg.Server.ReadTimeout,
+			"write_timeout", cfg.Server.WriteTimeout,
+		)
+
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("server failed to start", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	// Wait for interrupt signal for graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	<-quit
+
+	logger.Info("shutting down server gracefully...")
+
+	// Create shutdown context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
+	defer cancel()
+
+	// Attempt graceful shutdown
+	if err := server.Shutdown(ctx); err != nil {
+		logger.Error("server forced to shutdown", "error", err)
+		os.Exit(1)
+	}
+
+	logger.Info("server stopped gracefully")
 }
