@@ -1,0 +1,336 @@
+openapi: 3.0.3
+info:
+  title: Post Analyzer Webserver API
+  description: |
+    A production-ready web application for analyzing and managing posts.
+
+    Features:
+    - Fetch posts from external APIs
+    - Store and manage posts
+    - Character frequency analysis
+    - Prometheus metrics
+    - Health checks
+  version: 2.0.0
+  contact:
+    name: Post Analyzer Team
+    url: https://github.com/hoangsonww/Post-Analyzer-Webserver
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Development server
+  - url: https://post-analyzer-webserver.onrender.com
+    description: Production server
+
+tags:
+  - name: Health
+    description: Health and readiness checks
+  - name: Posts
+    description: Post management operations
+  - name: Analysis
+    description: Character analysis operations
+  - name: Metrics
+    description: Prometheus metrics
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Returns the health status of the application
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Application is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /readiness:
+    get:
+      tags:
+        - Health
+      summary: Readiness check
+      description: Returns whether the application is ready to serve traffic
+      operationId: readinessCheck
+      responses:
+        '200':
+          description: Application is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ready
+                  timestamp:
+                    type: string
+                    format: date-time
+        '503':
+          description: Application is not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /metrics:
+    get:
+      tags:
+        - Metrics
+      summary: Prometheus metrics
+      description: Returns Prometheus metrics for monitoring
+      operationId: getMetrics
+      responses:
+        '200':
+          description: Metrics in Prometheus format
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /:
+    get:
+      tags:
+        - Posts
+      summary: Home page
+      description: Displays the home page with all posts
+      operationId: getHome
+      responses:
+        '200':
+          description: HTML page with posts
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /fetch:
+    get:
+      tags:
+        - Posts
+      summary: Fetch posts from external API
+      description: Fetches posts from JSONPlaceholder API and stores them
+      operationId: fetchPosts
+      responses:
+        '200':
+          description: Posts fetched successfully
+          content:
+            text/html:
+              schema:
+                type: string
+        '500':
+          description: Failed to fetch or store posts
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /add:
+    get:
+      tags:
+        - Posts
+      summary: Display add post form
+      description: Shows the form to add a new post
+      operationId: showAddPostForm
+      responses:
+        '200':
+          description: Add post form
+          content:
+            text/html:
+              schema:
+                type: string
+
+    post:
+      tags:
+        - Posts
+      summary: Add a new post
+      description: Creates a new post with the provided title and body
+      operationId: addPost
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - title
+                - body
+              properties:
+                title:
+                  type: string
+                  maxLength: 500
+                  description: Post title
+                  example: My First Post
+                body:
+                  type: string
+                  maxLength: 10000
+                  description: Post body
+                  example: This is the content of my first post
+      responses:
+        '200':
+          description: Post added successfully
+          content:
+            text/html:
+              schema:
+                type: string
+        '400':
+          description: Invalid input
+          content:
+            text/html:
+              schema:
+                type: string
+        '500':
+          description: Failed to create post
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /analyze:
+    get:
+      tags:
+        - Analysis
+      summary: Analyze character frequency
+      description: Performs character frequency analysis on all posts
+      operationId: analyzePosts
+      responses:
+        '200':
+          description: Analysis results
+          content:
+            text/html:
+              schema:
+                type: string
+        '500':
+          description: Analysis failed
+          content:
+            text/html:
+              schema:
+                type: string
+
+components:
+  schemas:
+    Post:
+      type: object
+      required:
+        - userId
+        - id
+        - title
+        - body
+      properties:
+        userId:
+          type: integer
+          description: ID of the user who created the post
+          example: 1
+        id:
+          type: integer
+          description: Unique post identifier
+          example: 1
+        title:
+          type: string
+          maxLength: 500
+          description: Post title
+          example: Sample Post Title
+        body:
+          type: string
+          maxLength: 10000
+          description: Post content
+          example: This is the body of the post with some interesting content.
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when post was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when post was last updated
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: Internal server error
+        timestamp:
+          type: string
+          format: date-time
+          description: When the error occurred
+
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy, ready, not ready]
+          description: Status of the service
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the status check
+
+  securitySchemes:
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication (not currently implemented)
+
+  parameters:
+    RequestID:
+      name: X-Request-ID
+      in: header
+      description: Unique request identifier for tracing
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    TooManyRequests:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: Rate limit exceeded. Please try again later.
+
+x-readme:
+  samples-languages:
+    - curl
+    - javascript
+    - python
+    - go

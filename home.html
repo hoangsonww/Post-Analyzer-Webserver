@@ -32,6 +32,9 @@
             border-radius: 5px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             transition: background-color 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+            border: none;
+            font-size: 14px;
         }
         .button:hover {
             background-color: #0056b3;
@@ -91,6 +94,44 @@
             max-height: 400px;
             margin: 20px auto;
         }
+        #analysisSection {
+            display: none;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #0056b3;
+        }
+        .top-chars {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .char-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        .char-item:hover {
+            background: #f8f9fa;
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -101,7 +142,7 @@
     <div class="button-container">
         <a href="/" class="button">Home</a>
         <a href="/fetch" class="button">Fetch Posts</a>
-        <a href="/analyze" class="button">Analyze Character Frequency in Posts</a>
+        <button onclick="analyzeCharacters()" class="button">Analyze Character Frequency</button>
         <a href="/add" class="button">Add New Post</a>
     </div>
     <div class="content">
@@ -113,12 +154,12 @@
         <p>This application allows you to:</p>
         <ul>
             <li>Fetch posts from an external API and view them.</li>
-            <li>Analyze character frequency in the posts.</li>
+            <li>Analyze character frequency in the posts (calculated in your browser).</li>
             <li>Add new posts to the existing list.</li>
         </ul>
         {{if .HasPosts}}
         <h3>Recent Posts:</h3>
-        <div class="posts">
+        <div class="posts" id="postsContainer">
             {{range .Posts}}
             <div class="post-item">
                 <strong>{{.Title}}</strong>
@@ -142,7 +183,7 @@
             </div>
         </form>
         {{else if .HasPosts}}
-        <div class="posts">
+        <div class="posts" id="postsContainer">
             <h2>Fetched Posts:</h2>
             {{range .Posts}}
             <div class="post-item">
@@ -152,72 +193,225 @@
             {{end}}
         </div>
         {{end}}
-        {{if .HasAnalysis}}
-        <div class="analysis">
-            <h2>Character Frequency Analysis:</h2>
+
+        <!-- Client-side Analysis Section -->
+        <div id="analysisSection" class="analysis">
+            <h2>Character Frequency Analysis (Client-Side)</h2>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Posts</div>
+                    <div class="stat-value" id="totalPosts">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Characters</div>
+                    <div class="stat-value" id="totalChars">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Unique Characters</div>
+                    <div class="stat-value" id="uniqueChars">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Average Post Length</div>
+                    <div class="stat-value" id="avgLength">0</div>
+                </div>
+            </div>
+
             <div class="char-frequency">
                 <canvas id="charFreqChart"></canvas>
-                <script>
-                    const charFreq = {{.CharFreq | toJSON}};
-                    const ctx = document.getElementById('charFreqChart').getContext('2d');
-                    const labels = Object.keys(charFreq).map(key => String.fromCharCode(key));
-                    const data = Object.values(charFreq);
-                    const chart = new Chart(ctx, {
-                        type: 'bar',
-                        data: {
-                            labels: labels,
-                            datasets: [{
-                                label: 'Character Frequency',
-                                data: data,
-                                backgroundColor: 'rgba(54, 162, 235, 0.5)',
-                                borderColor: 'rgba(54, 162, 235, 1)',
-                                borderWidth: 1
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            scales: {
-                                x: {
-                                    title: {
-                                        display: true,
-                                        text: 'Characters'
-                                    },
-                                    grid: {
-                                        display: false
-                                    }
-                                },
-                                y: {
-                                    title: {
-                                        display: true,
-                                        text: 'Frequency'
-                                    },
-                                    beginAtZero: true,
-                                    grid: {
-                                        color: 'rgba(200, 200, 200, 0.2)'
-                                    }
-                                }
+            </div>
+
+            <div style="margin-top: 20px;">
+                <h3>Top 20 Most Frequent Characters:</h3>
+                <div class="top-chars" id="topCharsList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let analysisChart = null;
+
+        function analyzeCharacters() {
+            // Get all post content from the page
+            const postItems = document.querySelectorAll('.post-item');
+
+            if (postItems.length === 0) {
+                alert('No posts to analyze! Please fetch posts first.');
+                return;
+            }
+
+            let allText = '';
+            postItems.forEach(item => {
+                allText += item.textContent;
+            });
+
+            // Calculate character frequency
+            const charFreq = {};
+            for (let char of allText) {
+                charFreq[char] = (charFreq[char] || 0) + 1;
+            }
+
+            // Sort by frequency and get top 20
+            const sortedChars = Object.entries(charFreq)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 20);
+
+            // Calculate statistics
+            const totalChars = allText.length;
+            const uniqueChars = Object.keys(charFreq).length;
+            const totalPosts = postItems.length;
+            const avgLength = Math.round(totalChars / totalPosts);
+
+            // Update stats
+            document.getElementById('totalPosts').textContent = totalPosts.toLocaleString();
+            document.getElementById('totalChars').textContent = totalChars.toLocaleString();
+            document.getElementById('uniqueChars').textContent = uniqueChars.toLocaleString();
+            document.getElementById('avgLength').textContent = avgLength.toLocaleString();
+
+            // Update top characters list
+            const topCharsList = document.getElementById('topCharsList');
+            topCharsList.innerHTML = sortedChars.map(([char, count]) => {
+                const displayChar = char === ' ' ? 'Space' :
+                                  char === '\n' ? 'Newline' :
+                                  char === '\t' ? 'Tab' : char;
+                const percentage = ((count / totalChars) * 100).toFixed(2);
+                return `
+                    <div class="char-item">
+                        <span><strong>'${displayChar}'</strong></span>
+                        <span>${count.toLocaleString()} (${percentage}%)</span>
+                    </div>
+                `;
+            }).join('');
+
+            // Prepare chart data
+            const labels = sortedChars.map(([char]) =>
+                char === ' ' ? 'Space' :
+                char === '\n' ? '\\n' :
+                char === '\t' ? '\\t' : char
+            );
+            const data = sortedChars.map(([, count]) => count);
+
+            // Show analysis section
+            document.getElementById('analysisSection').style.display = 'block';
+
+            // Destroy existing chart if any
+            if (analysisChart) {
+                analysisChart.destroy();
+            }
+
+            // Create chart
+            const ctx = document.getElementById('charFreqChart').getContext('2d');
+            analysisChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Character Frequency',
+                        data: data,
+                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Characters'
                             },
-                            plugins: {
-                                legend: {
-                                    display: true,
-                                    position: 'top'
+                            grid: {
+                                display: false
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Frequency'
+                            },
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(200, 200, 200, 0.2)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const percentage = ((context.parsed.y / totalChars) * 100).toFixed(2);
+                                    return `Frequency: ${context.parsed.y.toLocaleString()} (${percentage}%)`;
                                 }
                             }
                         }
-                    });
-                </script>
-                <div>
-                    <h3>Character Frequencies:</h3>
-                    <div class="char-frequency">
-                        {{range $key, $value := .CharFreq}}
-                        <p>'{{printf "%q" $key}}': {{$value}}</p>
-                        {{end}}
-                    </div>
-                </div>
-            </div>
-        </div>
+                    }
+                }
+            });
+
+            // Scroll to analysis
+            document.getElementById('analysisSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // If on analyze page with backend data, still use it
+        {{if .HasAnalysis}}
+        window.addEventListener('DOMContentLoaded', function() {
+            const charFreq = {{.CharFreq | toJSON}};
+            const ctx = document.getElementById('charFreqChart').getContext('2d');
+            const labels = Object.keys(charFreq).map(key => String.fromCharCode(key));
+            const data = Object.values(charFreq);
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Character Frequency',
+                        data: data,
+                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Characters'
+                            },
+                            grid: {
+                                display: false
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Frequency'
+                            },
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(200, 200, 200, 0.2)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+        });
         {{end}}
-    </div>
+    </script>
 </body>
 </html>

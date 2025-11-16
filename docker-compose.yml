@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database
+  postgres:
+    image: postgres:16-alpine
+    container_name: post-analyzer-db
+    environment:
+      POSTGRES_DB: postanalyzer
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  # Post Analyzer application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: post-analyzer-app
+    environment:
+      # Server configuration
+      PORT: 8080
+      HOST: 0.0.0.0
+      ENVIRONMENT: production
+      READ_TIMEOUT: 15s
+      WRITE_TIMEOUT: 15s
+      SHUTDOWN_TIMEOUT: 30s
+
+      # Database configuration
+      DB_TYPE: postgres
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: postanalyzer
+      DB_SSL_MODE: disable
+      DB_MAX_CONNS: 25
+      DB_MIN_CONNS: 5
+
+      # Security configuration
+      RATE_LIMIT_REQUESTS: 100
+      RATE_LIMIT_WINDOW: 1m
+      MAX_BODY_SIZE: 1048576
+      ALLOWED_ORIGINS: "*"
+
+      # Logging configuration
+      LOG_LEVEL: info
+      LOG_FORMAT: json
+      LOG_OUTPUT: stdout
+
+      # External API configuration
+      JSONPLACEHOLDER_URL: https://jsonplaceholder.typicode.com/posts
+      HTTP_TIMEOUT: 30s
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Prometheus for metrics
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: post-analyzer-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    depends_on:
+      - app
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: post-analyzer-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  app-network:
+    driver: bridge
