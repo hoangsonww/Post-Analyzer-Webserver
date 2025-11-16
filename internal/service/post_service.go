@@ -32,7 +32,9 @@ func NewPostService(storage storage.Storage) *PostService {
 // GetAll retrieves all posts with optional filtering and pagination
 func (s *PostService) GetAll(ctx context.Context, filter *models.PostFilter, pagination *models.PaginationParams) ([]models.Post, *models.PaginationMeta, error) {
 	start := time.Now()
-	defer metrics.RecordDBOperation("get_all_posts", "success", time.Since(start))
+	defer func() {
+		metrics.RecordDBOperation("get_all_posts", "success", time.Since(start))
+	}()
 
 	// Get all posts from storage
 	storagePosts, err := s.storage.GetAll(ctx)
@@ -83,7 +85,9 @@ func (s *PostService) GetAll(ctx context.Context, filter *models.PostFilter, pag
 // GetByID retrieves a post by ID
 func (s *PostService) GetByID(ctx context.Context, id int) (*models.Post, error) {
 	start := time.Now()
-	defer metrics.RecordDBOperation("get_post_by_id", "success", time.Since(start))
+	defer func() {
+		metrics.RecordDBOperation("get_post_by_id", "success", time.Since(start))
+	}()
 
 	storagePost, err := s.storage.GetByID(ctx, id)
 	if err != nil {
@@ -109,7 +113,9 @@ func (s *PostService) GetByID(ctx context.Context, id int) (*models.Post, error)
 // Create creates a new post
 func (s *PostService) Create(ctx context.Context, req *models.CreatePostRequest) (*models.Post, error) {
 	start := time.Now()
-	defer metrics.RecordDBOperation("create_post", "success", time.Since(start))
+	defer func() {
+		metrics.RecordDBOperation("create_post", "success", time.Since(start))
+	}()
 
 	// Validate input
 	if err := s.validateCreateRequest(req); err != nil {
@@ -145,7 +151,9 @@ func (s *PostService) Create(ctx context.Context, req *models.CreatePostRequest)
 // Update updates an existing post
 func (s *PostService) Update(ctx context.Context, id int, req *models.UpdatePostRequest) (*models.Post, error) {
 	start := time.Now()
-	defer metrics.RecordDBOperation("update_post", "success", time.Since(start))
+	defer func() {
+		metrics.RecordDBOperation("update_post", "success", time.Since(start))
+	}()
 
 	// Get existing post
 	existing, err := s.storage.GetByID(ctx, id)
@@ -193,7 +201,9 @@ func (s *PostService) Update(ctx context.Context, id int, req *models.UpdatePost
 // Delete deletes a post
 func (s *PostService) Delete(ctx context.Context, id int) error {
 	start := time.Now()
-	defer metrics.RecordDBOperation("delete_post", "success", time.Since(start))
+	defer func() {
+		metrics.RecordDBOperation("delete_post", "success", time.Since(start))
+	}()
 
 	if err := s.storage.Delete(ctx, id); err != nil {
 		if err == storage.ErrNotFound {
@@ -210,7 +220,9 @@ func (s *PostService) Delete(ctx context.Context, id int) error {
 // BulkCreate creates multiple posts
 func (s *PostService) BulkCreate(ctx context.Context, req *models.BulkCreateRequest) (*models.BulkCreateResponse, error) {
 	start := time.Now()
-	defer metrics.RecordDBOperation("bulk_create_posts", "success", time.Since(start))
+	defer func() {
+		metrics.RecordDBOperation("bulk_create_posts", "success", time.Since(start))
+	}()
 
 	response := &models.BulkCreateResponse{
 		PostIDs: make([]int, 0),
@@ -252,7 +264,9 @@ func (s *PostService) ExportPosts(ctx context.Context, writer io.Writer, format 
 // AnalyzeCharacterFrequency performs character frequency analysis
 func (s *PostService) AnalyzeCharacterFrequency(ctx context.Context) (*models.AnalyticsResult, error) {
 	start := time.Now()
-	defer metrics.RecordAnalysisOperation(time.Since(start))
+	defer func() {
+		metrics.RecordAnalysisOperation(time.Since(start))
+	}()
 
 	posts, _, err := s.GetAll(ctx, nil, nil)
 	if err != nil {

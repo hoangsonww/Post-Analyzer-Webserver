@@ -238,11 +238,11 @@ func TestChain(t *testing.T) {
 
 func TestGetClientIP(t *testing.T) {
 	tests := []struct {
-		name           string
-		remoteAddr     string
-		xForwardedFor  string
-		xRealIP        string
-		expectedIP     string
+		name          string
+		remoteAddr    string
+		xForwardedFor string
+		xRealIP       string
+		expectedIP    string
 	}{
 		{
 			name:       "from RemoteAddr",

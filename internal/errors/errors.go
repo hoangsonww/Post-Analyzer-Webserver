@@ -7,10 +7,10 @@ import (
 
 // AppError represents a custom application error with HTTP context
 type AppError struct {
-	Code       string `json:"code"`
-	Message    string `json:"message"`
-	StatusCode int    `json:"-"`
-	Internal   error  `json:"-"`
+	Code       string            `json:"code"`
+	Message    string            `json:"message"`
+	StatusCode int               `json:"-"`
+	Internal   error             `json:"-"`
 	Fields     map[string]string `json:"fields,omitempty"`
 }
 

@@ -45,17 +45,17 @@ type PaginationParams struct {
 
 // PaginatedResponse represents a paginated API response
 type PaginatedResponse struct {
-	Data       interface{}      `json:"data"`
-	Pagination PaginationMeta   `json:"pagination"`
-	Meta       *ResponseMeta    `json:"meta,omitempty"`
+	Data       interface{}    `json:"data"`
+	Pagination PaginationMeta `json:"pagination"`
+	Meta       *ResponseMeta  `json:"meta,omitempty"`
 }
 
 // PaginationMeta contains pagination metadata
 type PaginationMeta struct {
-	Page       int `json:"page"`
-	PageSize   int `json:"pageSize"`
-	TotalItems int `json:"totalItems"`
-	TotalPages int `json:"totalPages"`
+	Page       int  `json:"page"`
+	PageSize   int  `json:"pageSize"`
+	TotalItems int  `json:"totalItems"`
+	TotalPages int  `json:"totalPages"`
 	HasNext    bool `json:"hasNext"`
 	HasPrev    bool `json:"hasPrev"`
 }
@@ -69,12 +69,12 @@ type ResponseMeta struct {
 
 // AnalyticsResult represents character frequency analysis results
 type AnalyticsResult struct {
-	TotalPosts      int                `json:"totalPosts"`
-	TotalCharacters int                `json:"totalCharacters"`
-	UniqueChars     int                `json:"uniqueChars"`
-	CharFrequency   map[rune]int       `json:"charFrequency"`
-	TopCharacters   []CharacterStat    `json:"topCharacters"`
-	Statistics      *AnalyticsStats    `json:"statistics,omitempty"`
+	TotalPosts      int             `json:"totalPosts"`
+	TotalCharacters int             `json:"totalCharacters"`
+	UniqueChars     int             `json:"uniqueChars"`
+	CharFrequency   map[rune]int    `json:"charFrequency"`
+	TopCharacters   []CharacterStat `json:"topCharacters"`
+	Statistics      *AnalyticsStats `json:"statistics,omitempty"`
 }
 
 // CharacterStat represents statistics for a single character
@@ -86,10 +86,10 @@ type CharacterStat struct {
 
 // AnalyticsStats represents overall analytics statistics
 type AnalyticsStats struct {
-	AveragePostLength float64            `json:"averagePostLength"`
-	MedianPostLength  int                `json:"medianPostLength"`
-	PostsPerUser      map[int]int        `json:"postsPerUser"`
-	TimeDistribution  map[string]int     `json:"timeDistribution"`
+	AveragePostLength float64        `json:"averagePostLength"`
+	MedianPostLength  int            `json:"medianPostLength"`
+	PostsPerUser      map[int]int    `json:"postsPerUser"`
+	TimeDistribution  map[string]int `json:"timeDistribution"`
 }
 
 // BulkCreateRequest represents a bulk create request
@@ -99,10 +99,10 @@ type BulkCreateRequest struct {
 
 // BulkCreateResponse represents a bulk create response
 type BulkCreateResponse struct {
-	Created  int      `json:"created"`
-	Failed   int      `json:"failed"`
-	Errors   []string `json:"errors,omitempty"`
-	PostIDs  []int    `json:"postIds,omitempty"`
+	Created int      `json:"created"`
+	Failed  int      `json:"failed"`
+	Errors  []string `json:"errors,omitempty"`
+	PostIDs []int    `json:"postIds,omitempty"`
 }
 
 // ExportFormat represents export file format
@@ -115,11 +115,11 @@ const (
 
 // HealthResponse represents health check response
 type HealthResponse struct {
-	Status    string            `json:"status"`
-	Timestamp time.Time         `json:"timestamp"`
-	Version   string            `json:"version,omitempty"`
-	Uptime    time.Duration     `json:"uptime,omitempty"`
-	Checks    map[string]bool   `json:"checks,omitempty"`
+	Status    string          `json:"status"`
+	Timestamp time.Time       `json:"timestamp"`
+	Version   string          `json:"version,omitempty"`
+	Uptime    time.Duration   `json:"uptime,omitempty"`
+	Checks    map[string]bool `json:"checks,omitempty"`
 }
 
 // User represents a user in the system (for future auth)
@@ -134,13 +134,13 @@ type User struct {
 
 // AuditLog represents an audit log entry
 type AuditLog struct {
-	ID        int       `json:"id" db:"id"`
-	UserID    int       `json:"userId" db:"user_id"`
-	Action    string    `json:"action" db:"action"`
-	Resource  string    `json:"resource" db:"resource"`
-	ResourceID int      `json:"resourceId" db:"resource_id"`
-	Changes   string    `json:"changes,omitempty" db:"changes"`
-	IPAddress string    `json:"ipAddress" db:"ip_address"`
-	UserAgent string    `json:"userAgent" db:"user_agent"`
-	CreatedAt time.Time `json:"createdAt" db:"created_at"`
+	ID         int       `json:"id" db:"id"`
+	UserID     int       `json:"userId" db:"user_id"`
+	Action     string    `json:"action" db:"action"`
+	Resource   string    `json:"resource" db:"resource"`
+	ResourceID int       `json:"resourceId" db:"resource_id"`
+	Changes    string    `json:"changes,omitempty" db:"changes"`
+	IPAddress  string    `json:"ipAddress" db:"ip_address"`
+	UserAgent  string    `json:"userAgent" db:"user_agent"`
+	CreatedAt  time.Time `json:"createdAt" db:"created_at"`
 }

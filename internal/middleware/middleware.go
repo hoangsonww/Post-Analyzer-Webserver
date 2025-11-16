@@ -157,7 +157,7 @@ type RateLimiter struct {
 }
 
 type clientInfo struct {
-	count      int
+	count       int
 	windowStart time.Time
 }
 
@@ -212,7 +212,7 @@ func (rl *RateLimiter) allow(clientIP string) bool {
 	if !exists || now.Sub(info.windowStart) > rl.window {
 		// New window
 		rl.requests[clientIP] = &clientInfo{
-			count:      1,
+			count:       1,
 			windowStart: now,
 		}
 		return true
