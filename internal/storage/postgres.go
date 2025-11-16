@@ -245,7 +245,7 @@ func (ps *PostgresStorage) BatchCreate(ctx context.Context, posts []Post) error 
 		metrics.RecordDBOperation("batch_create", "error", time.Since(start))
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	stmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO posts (id, user_id, title, body, created_at, updated_at)

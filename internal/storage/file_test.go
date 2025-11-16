@@ -225,7 +225,7 @@ func TestFileStorage_Count(t *testing.T) {
 			Title:  "Test",
 			Body:   "Body",
 		}
-		store.Create(ctx, post)
+		_ = store.Create(ctx, post)
 	}
 
 	// Count should be 5
@@ -301,7 +301,7 @@ func TestFileStorage_ConcurrentAccess(t *testing.T) {
 				Title:  "Concurrent Post",
 				Body:   "Body",
 			}
-			store.Create(ctx, post)
+			_ = store.Create(ctx, post)
 			done <- true
 		}(i)
 	}

@@ -388,7 +388,7 @@ func (a *API) respondError(w http.ResponseWriter, r *http.Request, err error) {
 		response["error"].(map[string]interface{})["fields"] = appErr.Fields
 	}
 
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 func getRequestID(ctx interface{}) string {

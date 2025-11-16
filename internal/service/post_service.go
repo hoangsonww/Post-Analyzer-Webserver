@@ -324,18 +324,18 @@ func (s *PostService) validateCreateRequest(req *models.CreatePostRequest) error
 	hasError := false
 
 	if req.Title == "" {
-		validationErr.WithField("title", "title is required")
+		_ = validationErr.WithField("title", "title is required")
 		hasError = true
 	} else if len(req.Title) > 500 {
-		validationErr.WithField("title", "title too long (max 500 characters)")
+		_ = validationErr.WithField("title", "title too long (max 500 characters)")
 		hasError = true
 	}
 
 	if req.Body == "" {
-		validationErr.WithField("body", "body is required")
+		_ = validationErr.WithField("body", "body is required")
 		hasError = true
 	} else if len(req.Body) > 10000 {
-		validationErr.WithField("body", "body too long (max 10000 characters)")
+		_ = validationErr.WithField("body", "body too long (max 10000 characters)")
 		hasError = true
 	}
 

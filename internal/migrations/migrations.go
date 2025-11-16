@@ -62,13 +62,13 @@ func (m *Migrator) Migrate(ctx context.Context) error {
 
 		// Run migration
 		if err := migration.Up(m.db); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("migration %d failed: %w", migration.Version, err)
 		}
 
 		// Update version
 		if err := m.updateVersion(tx, migration.Version, migration.Description); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("failed to update version: %w", err)
 		}
 

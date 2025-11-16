@@ -45,7 +45,7 @@ func main() {
 	http.HandleFunc("/add", AddPostHandler)
 
 	fmt.Println("Server starting at http://localhost:8080/")
-	http.ListenAndServe(":8080", nil)
+	_ = http.ListenAndServe(":8080", nil)
 }
 
 // HomeHandler serves the home page
