@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"Post_Analyzer_Webserver/config"
 	"Post_Analyzer_Webserver/internal/errors"
 	"Post_Analyzer_Webserver/internal/export"
 	"Post_Analyzer_Webserver/internal/gen/eventpb"
@@ -32,18 +33,22 @@ type API struct {
 	rabbitmq    *rabbitmq.Client   // optional: nil disables ReanalyzePosts
 	objects     *objectstore.Store // optional: nil disables export persistence/listing
 	triton      *triton.Client     // optional: nil disables ClassifySentiment
+	cfg         *config.Config     // for GET /api/v1/admin/status feature-flag reporting
+	startTime   time.Time
 }
 
 // NewAPI creates a new API handler. rmq/objects/tritonClient may be nil
 // when the corresponding broker/store/model isn't enabled; the affected
 // endpoints then return 503 instead of failing gateway startup.
-func NewAPI(postService rpcclient.PostClient, authService rpcclient.AuthClient, rmq *rabbitmq.Client, objects *objectstore.Store, tritonClient *triton.Client) *API {
+func NewAPI(postService rpcclient.PostClient, authService rpcclient.AuthClient, rmq *rabbitmq.Client, objects *objectstore.Store, tritonClient *triton.Client, cfg *config.Config) *API {
 	return &API{
 		postService: postService,
 		authService: authService,
 		rabbitmq:    rmq,
 		triton:      tritonClient,
 		objects:     objects,
+		cfg:         cfg,
+		startTime:   time.Now(),
 	}
 }
 
@@ -449,6 +454,44 @@ func (a *API) GetExport(w http.ResponseWriter, r *http.Request) {
 	if _, err := io.Copy(w, obj); err != nil {
 		logger.ErrorContext(ctx, "failed to stream export", "key", key, "error", err)
 	}
+}
+
+// AdminStatus handles GET /api/v1/admin/status: feature-flag / integration
+// visibility for operators. Gated to the "admin" ABAC resource (only the
+// admin role matches any policy for it — see internal/abac.DefaultPolicies),
+// so this is enforced by the same policy engine as everything else, not a
+// special-cased check in this handler.
+func (a *API) AdminStatus(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	subject, _ := middleware.SubjectFromContext(ctx)
+
+	integrations := map[string]bool{
+		"redis":    a.cfg.Redis.Enabled,
+		"kafka":    a.cfg.Messaging.KafkaEnabled,
+		"rabbitmq": a.cfg.Messaging.RabbitMQEnabled,
+		"rocketmq": a.cfg.Messaging.RocketMQEnabled,
+		"minio":    a.cfg.ObjectStore.Enabled,
+		"triton":   a.cfg.ML.Enabled,
+		"rpc_mux":  a.cfg.RPC.MuxTransport,
+	}
+
+	a.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"data": map[string]interface{}{
+			"environment":  a.cfg.Server.Environment,
+			"uptime":       time.Since(a.startTime).String(),
+			"integrations": integrations,
+			"rpc": map[string]string{
+				"postsvc": a.cfg.RPC.PostServiceAddr,
+				"authsvc": a.cfg.RPC.AuthServiceAddr,
+			},
+			"requestedBy": subject.Username,
+		},
+		"meta": &models.ResponseMeta{
+			RequestID: getRequestID(ctx),
+			Timestamp: time.Now(),
+		},
+	})
 }
 
 // ClassifySentiment handles POST /api/v1/ml/sentiment: on-demand sentiment

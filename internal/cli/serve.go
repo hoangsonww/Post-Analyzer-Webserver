@@ -118,9 +118,15 @@ func runServe() {
 	// ABAC allow decision from authsvc; /api/v1/auth/login (registered
 	// separately below) is the one unauthenticated endpoint that issues
 	// that JWT in the first place.
-	apiHandler := api.NewAPI(postClient, authClient, rmqClient, objectStore, tritonClient)
+	apiHandler := api.NewAPI(postClient, authClient, rmqClient, objectStore, tritonClient, cfg)
 	apiRouter := api.NewRouter(apiHandler)
 	protectedAPI := middleware.ABAC(authClient, "post", middleware.ActionByMethod)(apiRouter)
+	// /api/v1/admin/* sits behind a separate ABAC resource ("admin"),
+	// which only the admin role's policy matches — see
+	// internal/abac.DefaultPolicies. Registered as its own exact-path
+	// mux entry (like login) so it doesn't inherit the "post" resource
+	// gate the rest of /api/v1/ uses.
+	adminAPI := middleware.ABAC(authClient, "admin", middleware.ActionByMethod)(http.HandlerFunc(apiHandler.AdminStatus))
 	logger.Info("API handlers initialized")
 
 	// Initialize web handlers
@@ -145,9 +151,12 @@ func runServe() {
 	mux.HandleFunc("/readiness", webHandlers.Readiness)
 	mux.Handle("/metrics", metrics.Handler())
 
-	// API endpoints (v1). Login is registered as an exact path so it wins
-	// over the "/api/v1/" prefix match and stays outside the ABAC gate.
+	// API endpoints (v1). Login and admin/status are registered as exact
+	// paths so they win over the "/api/v1/" prefix match — login stays
+	// outside the ABAC gate entirely, admin/status uses the "admin"
+	// resource instead of "post".
 	mux.HandleFunc("/api/v1/auth/login", apiHandler.Login)
+	mux.Handle("/api/v1/admin/status", adminAPI)
 	mux.Handle("/api/", protectedAPI)
 	mux.Handle("/api/v1/", protectedAPI)
 
@@ -156,6 +165,9 @@ func runServe() {
 	mux.HandleFunc("/fetch", webHandlers.FetchPosts)
 	mux.HandleFunc("/analyze", webHandlers.AnalyzePosts)
 	mux.HandleFunc("/add", webHandlers.AddPost)
+	mux.HandleFunc("/dashboard", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "assets/dashboard.html")
+	})
 
 	// Serve static assets
 	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
