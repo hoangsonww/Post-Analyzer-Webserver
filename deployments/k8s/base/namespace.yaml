@@ -1,0 +1,6 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: post-analyzer
+  labels:
+    app.kubernetes.io/part-of: post-analyzer

@@ -1,0 +1,38 @@
+# prod overlay: higher replica floor (topped up further by the HPA),
+# PodDisruptionBudgets so voluntary disruptions (node drains, cluster
+# upgrades) can't take out every replica of a service at once.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+  - pdb.yaml
+  - hpa.yaml
+
+patches:
+  - target: { kind: Deployment, name: gateway }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 3
+  - target: { kind: Deployment, name: postsvc }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 3
+  - target: { kind: Deployment, name: authsvc }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+
+images:
+  - name: post-analyzer/gateway
+    newName: ghcr.io/hoangsonww/post-analyzer-gateway
+    newTag: latest
+  - name: post-analyzer/postsvc
+    newName: ghcr.io/hoangsonww/post-analyzer-postsvc
+    newTag: latest
+  - name: post-analyzer/authsvc
+    newName: ghcr.io/hoangsonww/post-analyzer-authsvc
+    newTag: latest

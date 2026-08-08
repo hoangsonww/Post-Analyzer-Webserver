@@ -1,0 +1,41 @@
+# dev overlay — intended for a dedicated dev cluster (kubectl context
+# e.g. "kind-pa-dev" locally, or a real cloud dev cluster later): single
+# replicas, relaxed resources, no ingress host restriction changes needed.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+patches:
+  - target: { kind: Deployment, name: postsvc }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target: { kind: Deployment, name: authsvc }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target: { kind: Deployment, name: gateway }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target: { kind: ConfigMap, name: post-analyzer-config }
+    patch: |
+      - op: replace
+        path: /data/LOG_LEVEL
+        value: debug
+
+images:
+  - name: post-analyzer/gateway
+    newName: ghcr.io/hoangsonww/post-analyzer-gateway
+    newTag: dev
+  - name: post-analyzer/postsvc
+    newName: ghcr.io/hoangsonww/post-analyzer-postsvc
+    newTag: dev
+  - name: post-analyzer/authsvc
+    newName: ghcr.io/hoangsonww/post-analyzer-authsvc
+    newTag: dev

@@ -1,0 +1,19 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gateway-pdb
+  namespace: post-analyzer
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels: { app: gateway }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: postsvc-pdb
+  namespace: post-analyzer
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: postsvc }
