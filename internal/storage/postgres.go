@@ -247,10 +247,16 @@ func (ps *PostgresStorage) BatchCreate(ctx context.Context, posts []Post) error 
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	// id is intentionally NOT in the insert column list: these are new
+	// posts, so the id column's SERIAL/IDENTITY default must assign it,
+	// same as the singular Create. An earlier version of this method
+	// inserted an explicit id (always 0 for freshly-constructed Post
+	// values) with "ON CONFLICT (id) DO NOTHING" — every post after the
+	// first in a batch silently collided on id=0 and was dropped.
 	stmt, err := tx.PrepareContext(ctx, `
-		INSERT INTO posts (id, user_id, title, body, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		ON CONFLICT (id) DO NOTHING
+		INSERT INTO posts (user_id, title, body, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, created_at, updated_at
 	`)
 	if err != nil {
 		metrics.RecordDBOperation("batch_create", "error", time.Since(start))
@@ -259,20 +265,21 @@ func (ps *PostgresStorage) BatchCreate(ctx context.Context, posts []Post) error 
 	defer stmt.Close()
 
 	now := time.Now()
-	for _, post := range posts {
-		createdAt := post.CreatedAt
+	for i := range posts {
+		createdAt := posts[i].CreatedAt
 		if createdAt.IsZero() {
 			createdAt = now
 		}
-		updatedAt := post.UpdatedAt
+		updatedAt := posts[i].UpdatedAt
 		if updatedAt.IsZero() {
 			updatedAt = now
 		}
 
-		_, err := stmt.ExecContext(ctx, post.Id, post.UserId, post.Title, post.Body, createdAt, updatedAt)
+		err := stmt.QueryRowContext(ctx, posts[i].UserId, posts[i].Title, posts[i].Body, createdAt, updatedAt).
+			Scan(&posts[i].Id, &posts[i].CreatedAt, &posts[i].UpdatedAt)
 		if err != nil {
 			metrics.RecordDBOperation("batch_create", "error", time.Since(start))
-			logger.ErrorContext(ctx, "failed to insert post in batch", "id", post.Id, "error", err)
+			logger.ErrorContext(ctx, "failed to insert post in batch", "index", i, "error", err)
 			return err
 		}
 	}

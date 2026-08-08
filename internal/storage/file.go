@@ -221,9 +221,22 @@ func (fs *FileStorage) BatchCreate(ctx context.Context, newPosts []Post) error {
 		return err
 	}
 
-	// Use existing posts if available, otherwise start fresh
+	// Mirrors Create's ID-assignment: append to (not overwrite) existing
+	// posts, and assign each new post the next sequential ID. Earlier
+	// version wrote newPosts alone (silently dropping existingPosts) and
+	// never assigned IDs, so freshly-constructed batch posts all kept
+	// Id=0.
+	maxID := 0
+	for _, p := range existingPosts {
+		if p.Id > maxID {
+			maxID = p.Id
+		}
+	}
+
 	now := time.Now()
 	for i := range newPosts {
+		maxID++
+		newPosts[i].Id = maxID
 		if newPosts[i].CreatedAt.IsZero() {
 			newPosts[i].CreatedAt = now
 		}
@@ -232,7 +245,8 @@ func (fs *FileStorage) BatchCreate(ctx context.Context, newPosts []Post) error {
 		}
 	}
 
-	if err := fs.writeToFile(newPosts); err != nil {
+	allPosts := append(existingPosts, newPosts...)
+	if err := fs.writeToFile(allPosts); err != nil {
 		metrics.RecordDBOperation("batch_create", "error", time.Since(start))
 		return err
 	}

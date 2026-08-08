@@ -280,6 +280,56 @@ func TestFileStorage_BatchCreate(t *testing.T) {
 	}
 }
 
+// TestFileStorage_BatchCreate_ZeroIDsAndPreservesExisting exercises the
+// real-world case (fresh Post values, Id always 0) that exposed an
+// analogous bug in PostgresStorage.BatchCreate: this one also failed to
+// assign IDs and additionally overwrote the file with only the new batch,
+// silently dropping any posts already on disk.
+func TestFileStorage_BatchCreate_ZeroIDsAndPreservesExisting(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "test_posts.json")
+
+	store, err := NewFileStorage(filePath)
+	if err != nil {
+		t.Fatalf("Failed to create file storage: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+
+	existing := &Post{UserId: 1, Title: "Pre-existing", Body: "Body"}
+	if err := store.Create(ctx, existing); err != nil {
+		t.Fatalf("Failed to create pre-existing post: %v", err)
+	}
+
+	batch := []Post{
+		{UserId: 2, Title: "Batch 1", Body: "b1"},
+		{UserId: 2, Title: "Batch 2", Body: "b2"},
+	}
+	if err := store.BatchCreate(ctx, batch); err != nil {
+		t.Fatalf("BatchCreate failed: %v", err)
+	}
+
+	if batch[0].Id == 0 || batch[1].Id == 0 {
+		t.Fatalf("expected batch posts to get assigned non-zero IDs, got %+v", batch)
+	}
+	if batch[0].Id == batch[1].Id {
+		t.Fatalf("expected distinct IDs for batch posts, both got %d", batch[0].Id)
+	}
+
+	count, err := store.Count(ctx)
+	if err != nil {
+		t.Fatalf("Count failed: %v", err)
+	}
+	if count != 3 {
+		t.Fatalf("expected 3 posts (1 pre-existing + 2 batch), got %d", count)
+	}
+
+	if _, err := store.GetByID(ctx, existing.Id); err != nil {
+		t.Errorf("expected pre-existing post to survive BatchCreate: %v", err)
+	}
+}
+
 func TestFileStorage_ConcurrentAccess(t *testing.T) {
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "test_posts.json")
