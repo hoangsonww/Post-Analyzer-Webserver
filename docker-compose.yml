@@ -96,6 +96,38 @@ services:
     restart: unless-stopped
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # One-shot: pre-creates the post.events topic before any producer or
+  # consumer touches it. Kafka's default auto.create.topics.enable=true
+  # normally papers over needing this, but it caused a real, reproducible
+  # bug: the first consumer to start (analytics-consumer) triggered topic
+  # auto-creation itself via its own metadata/group-join request, was
+  # assigned the partition that had *just* been created in that same
+  # handshake, and its fetch loop then never picked up any messages —
+  # confirmed live: a plain `docker restart` against the now-already-
+  # existing topic consumed every pending message instantly. Explicit
+  # pre-creation (same pattern as rocketmq-init below) removes the race.
+  kafka-init:
+    image: apache/kafka:latest
+    container_name: post-analyzer-kafka-init
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        /opt/kafka/bin/kafka-topics.sh --create --if-not-exists \
+          --topic post.events --bootstrap-server kafka:9092 \
+          --partitions 1 --replication-factor 1
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - app-network
 
   # RabbitMQ — reanalysis job queue. Management UI on :15672 (guest/guest).
   rabbitmq:
@@ -226,8 +258,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      kafka:
-        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
       rocketmq-broker:
         condition: service_healthy
     restart: unless-stopped
@@ -313,7 +345,8 @@ services:
       <<: *app-env
       METRICS_PORT: "9101"
     depends_on:
-      - kafka
+      kafka-init:
+        condition: service_completed_successfully
     restart: unless-stopped
     networks:
       - app-network
