@@ -20,8 +20,10 @@ provider "aws" {
 module "post_analyzer" {
   source = "../../modules/aws"
 
-  project     = var.project
-  environment = var.environment
-  region      = var.region
-  db_password = var.db_password
+  project                = var.project
+  environment            = var.environment
+  region                 = var.region
+  db_password            = var.db_password
+  enable_cdn             = var.enable_cdn
+  cdn_origin_domain_name = var.cdn_origin_domain_name
 }

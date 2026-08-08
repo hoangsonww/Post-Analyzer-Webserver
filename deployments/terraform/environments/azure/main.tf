@@ -12,8 +12,10 @@ terraform {
 module "post_analyzer" {
   source = "../../modules/azure"
 
-  project           = var.project
-  environment       = var.environment
-  location          = var.location
-  db_admin_password = var.db_admin_password
+  project             = var.project
+  environment         = var.environment
+  location            = var.location
+  db_admin_password   = var.db_admin_password
+  enable_cdn          = var.enable_cdn
+  cdn_origin_hostname = var.cdn_origin_hostname
 }

@@ -246,3 +246,67 @@ resource "aws_ecr_repository" "services" {
   image_scanning_configuration { scan_on_push = true }
   tags = local.tags
 }
+
+# --- CDN (edge cache in front of the ingress-nginx ELB) ------------------
+#
+# Off by default (var.enable_cdn = false): the real origin is the
+# hostname of the ELB that Kubernetes' ingress-nginx controller creates
+# when deployments/k8s/overlays/<env> is applied to this cluster — that
+# hostname doesn't exist until *after* this module's apply, so wiring it
+# in is inherently a two-phase deploy (apply this module -> deploy
+# ingress-nginx -> `kubectl get svc -n ingress-nginx` for the ELB
+# hostname -> re-apply with enable_cdn=true and that hostname). Static
+# assets (/assets/*, /dashboard, /home.html) get edge-cached; /api/* uses
+# the AWS-managed CachingDisabled policy so auth/ABAC-gated responses are
+# never cached at the edge.
+resource "aws_cloudfront_distribution" "edge" {
+  count   = var.enable_cdn ? 1 : 0
+  enabled = true
+  comment = "${local.name} edge CDN"
+
+  origin {
+    domain_name = var.cdn_origin_domain_name
+    origin_id   = "ingress"
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "http-only" # ingress-nginx terminates TLS itself if configured; adjust to https-only once a cert is attached
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
+  }
+
+  default_cache_behavior {
+    target_origin_id       = "ingress"
+    viewer_protocol_policy = "redirect-to-https"
+    allowed_methods        = ["GET", "HEAD", "OPTIONS"]
+    cached_methods         = ["GET", "HEAD"]
+    compress               = true
+    # Managed-CachingOptimized — safe default for static assets.
+    cache_policy_id = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+  }
+
+  ordered_cache_behavior {
+    path_pattern           = "/api/*"
+    target_origin_id       = "ingress"
+    viewer_protocol_policy = "redirect-to-https"
+    allowed_methods        = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+    cached_methods         = ["GET", "HEAD"]
+    compress               = true
+    # Managed-CachingDisabled — API responses are per-user/ABAC-gated and must never be cached at the edge.
+    cache_policy_id = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+    # Managed-AllViewer — forwards Authorization/Host/etc. through to the origin untouched.
+    origin_request_policy_id = "216adef6-5c7f-47e4-b989-5492eafa07d3"
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    cloudfront_default_certificate = true
+  }
+
+  tags = local.tags
+}

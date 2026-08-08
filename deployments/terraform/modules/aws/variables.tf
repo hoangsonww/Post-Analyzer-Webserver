@@ -56,3 +56,15 @@ variable "redis_node_type" {
   type    = string
   default = "cache.t4g.micro"
 }
+
+variable "enable_cdn" {
+  description = "Provision a CloudFront distribution in front of the ingress ELB. Requires cdn_origin_domain_name — leave false until that hostname exists (see main.tf comment on aws_cloudfront_distribution.edge)."
+  type        = bool
+  default     = false
+}
+
+variable "cdn_origin_domain_name" {
+  description = "Hostname of the ingress-nginx ELB to use as the CloudFront origin. Only required when enable_cdn = true."
+  type        = string
+  default     = ""
+}

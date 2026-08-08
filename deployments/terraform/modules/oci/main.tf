@@ -162,3 +162,17 @@ resource "oci_artifacts_container_repository" "services" {
   display_name   = "${var.project}/${each.key}"
   is_public      = false
 }
+
+# --- CDN ------------------------------------------------------------------
+#
+# Deliberately no CDN resource here, unlike the AWS (CloudFront) and Azure
+# (Front Door) modules: OCI does not ship a first-party edge-cache CDN
+# product with a Terraform resource in the `oci` provider — its edge-layer
+# offerings are OCI WAF (`oci_waf_web_app_firewall`, security/rate-limiting
+# at the edge, not caching) and third-party CDN partners (e.g. Cloudflare,
+# Akamai) provisioned via *their* Terraform providers in front of the OKE
+# ingress LoadBalancer created by deployments/k8s/. If this module is
+# picked for a real deployment and edge caching is required, the
+# recommended path is: stand up the OCI Load Balancer via ingress-nginx as
+# usual, then front it with a separate CDN provider's Terraform module —
+# not something to fake here with an unsupported resource.

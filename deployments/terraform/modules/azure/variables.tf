@@ -43,3 +43,15 @@ variable "redis_capacity" {
   type    = number
   default = 0 # smallest Basic tier size
 }
+
+variable "enable_cdn" {
+  description = "Provision an Azure Front Door profile in front of the AKS ingress. Requires cdn_origin_hostname — leave false until that hostname exists (see main.tf comment above azurerm_cdn_frontdoor_profile.main)."
+  type        = bool
+  default     = false
+}
+
+variable "cdn_origin_hostname" {
+  description = "Hostname/IP of the AKS ingress-nginx LoadBalancer Service. Only required when enable_cdn = true."
+  type        = string
+  default     = ""
+}
