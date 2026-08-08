@@ -1,0 +1,5 @@
+project     = "post-analyzer"
+environment = "dev"
+location    = "eastus"
+
+# db_admin_password = "set-via-TF_VAR_db_admin_password"

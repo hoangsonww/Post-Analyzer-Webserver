@@ -1,0 +1,8 @@
+project     = "post-analyzer"
+environment = "dev"
+region      = "us-east-1"
+
+# Don't put real secrets in a checked-in tfvars file. Prefer:
+#   TF_VAR_db_password=... terraform apply
+# or a secrets manager / CI secret store.
+# db_password = "set-via-TF_VAR_db_password"
