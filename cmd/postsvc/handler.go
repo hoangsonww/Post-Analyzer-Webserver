@@ -11,13 +11,15 @@ import (
 
 // PostServiceImpl implements the Kitex-generated post.PostService interface,
 // delegating all business logic to the shared internal/service.PostService
-// (the same logic the HTTP gateway used before the RPC split).
+// (the same logic the HTTP gateway used before the RPC split). It also
+// publishes lifecycle events to Kafka/RocketMQ via events (nil-safe).
 type PostServiceImpl struct {
-	svc *service.PostService
+	svc    *service.PostService
+	events *EventPublisher
 }
 
-func NewPostServiceImpl(svc *service.PostService) *PostServiceImpl {
-	return &PostServiceImpl{svc: svc}
+func NewPostServiceImpl(svc *service.PostService, events *EventPublisher) *PostServiceImpl {
+	return &PostServiceImpl{svc: svc, events: events}
 }
 
 func (s *PostServiceImpl) ListPosts(ctx context.Context, req *post.ListPostsRequest) (*post.ListPostsResponse, error) {
@@ -52,6 +54,8 @@ func (s *PostServiceImpl) CreatePost(ctx context.Context, req *post.CreatePostRe
 	if err != nil {
 		return &post.CreatePostResponse{BaseResp: adapt.Err(err)}, nil
 	}
+	s.events.PublishPostEvent(ctx, "created", *p)
+	s.events.PublishScheduledRecheck(ctx, *p)
 	return &post.CreatePostResponse{Post: adapt.ModelToThriftPost(*p), BaseResp: adapt.OK()}, nil
 }
 
@@ -67,6 +71,7 @@ func (s *PostServiceImpl) UpdatePost(ctx context.Context, req *post.UpdatePostRe
 	if err != nil {
 		return &post.UpdatePostResponse{BaseResp: adapt.Err(err)}, nil
 	}
+	s.events.PublishPostEvent(ctx, "updated", *p)
 	return &post.UpdatePostResponse{Post: adapt.ModelToThriftPost(*p), BaseResp: adapt.OK()}, nil
 }
 
@@ -74,6 +79,7 @@ func (s *PostServiceImpl) DeletePost(ctx context.Context, req *post.DeletePostRe
 	if err := s.svc.Delete(ctx, int(req.Id)); err != nil {
 		return &post.DeletePostResponse{BaseResp: adapt.Err(err)}, nil
 	}
+	s.events.PublishPostEvent(ctx, "deleted", models.Post{ID: int(req.Id)})
 	return &post.DeletePostResponse{BaseResp: adapt.OK()}, nil
 }
 
@@ -127,6 +133,8 @@ func (s *PostServiceImpl) AnalyzePosts(ctx context.Context, req *post.AnalyzePos
 			stats.TimeDistribution[k] = int32(v)
 		}
 	}
+
+	s.events.PublishPostEvent(ctx, "analyzed", models.Post{})
 
 	return &post.AnalyzePostsResponse{
 		TotalPosts:      int32(result.TotalPosts),

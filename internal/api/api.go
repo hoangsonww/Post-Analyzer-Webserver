@@ -9,9 +9,14 @@ import (
 
 	"Post_Analyzer_Webserver/internal/errors"
 	"Post_Analyzer_Webserver/internal/export"
+	"Post_Analyzer_Webserver/internal/gen/eventpb"
 	"Post_Analyzer_Webserver/internal/logger"
+	"Post_Analyzer_Webserver/internal/messaging/rabbitmq"
+	"Post_Analyzer_Webserver/internal/middleware"
 	"Post_Analyzer_Webserver/internal/models"
 	"Post_Analyzer_Webserver/internal/rpcclient"
+
+	"github.com/google/uuid"
 )
 
 // API handles REST API endpoints. It talks to the post-analysis and auth
@@ -20,13 +25,16 @@ import (
 type API struct {
 	postService rpcclient.PostClient
 	authService rpcclient.AuthClient
+	rabbitmq    *rabbitmq.Client // optional: nil disables ReanalyzePosts
 }
 
-// NewAPI creates a new API handler
-func NewAPI(postService rpcclient.PostClient, authService rpcclient.AuthClient) *API {
+// NewAPI creates a new API handler. rmq may be nil when the RabbitMQ
+// reanalysis queue isn't enabled — ReanalyzePosts then returns 503.
+func NewAPI(postService rpcclient.PostClient, authService rpcclient.AuthClient, rmq *rabbitmq.Client) *API {
 	return &API{
 		postService: postService,
 		authService: authService,
+		rabbitmq:    rmq,
 	}
 }
 
@@ -319,6 +327,49 @@ func (a *API) ExportPosts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	logger.InfoContext(ctx, "posts exported", "format", format)
+}
+
+// ReanalyzePosts handles POST /api/v1/posts/reanalyze: instead of running
+// the analysis inline, it enqueues a ReanalysisJob on RabbitMQ and returns
+// immediately — cmd/reanalysis-worker does the actual work asynchronously.
+func (a *API) ReanalyzePosts(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if a.rabbitmq == nil {
+		a.respondError(w, r, errors.ErrServiceUnavailable)
+		return
+	}
+
+	requestedBy := "anonymous"
+	if subj, ok := middleware.SubjectFromContext(ctx); ok {
+		requestedBy = subj.Username
+	}
+
+	job := &eventpb.ReanalysisJob{
+		JobId:           uuid.NewString(),
+		RequestedBy:     requestedBy,
+		RequestedAtUnix: time.Now().Unix(),
+		FullCorpus:      true,
+	}
+
+	if err := a.rabbitmq.Publish(ctx, rabbitmq.ReanalysisQueue, job); err != nil {
+		logger.ErrorContext(ctx, "failed to enqueue reanalysis job", "error", err)
+		a.respondError(w, r, errors.NewInternalError(err))
+		return
+	}
+
+	logger.InfoContext(ctx, "reanalysis job enqueued", "job_id", job.JobId, "requested_by", requestedBy)
+
+	a.respondJSON(w, http.StatusAccepted, map[string]interface{}{
+		"data": map[string]interface{}{
+			"jobId":  job.JobId,
+			"status": "queued",
+		},
+		"meta": &models.ResponseMeta{
+			RequestID: getRequestID(ctx),
+			Timestamp: time.Now(),
+		},
+	})
 }
 
 // AnalyzePosts handles GET /api/v1/posts/analytics

@@ -14,9 +14,22 @@ type Config struct {
 	Security SecurityConfig
 	Logging  LoggingConfig
 	External ExternalConfig
-	RPC      RPCConfig
-	Auth     AuthConfig
-	Redis    RedisConfig
+	RPC       RPCConfig
+	Auth      AuthConfig
+	Redis     RedisConfig
+	Messaging MessagingConfig
+}
+
+// MessagingConfig contains connection info for the three message brokers.
+// Each is independently enabled so a partial local stack (e.g. no
+// RocketMQ running) doesn't block the rest of the system.
+type MessagingConfig struct {
+	KafkaBrokers    []string
+	KafkaEnabled    bool
+	RabbitMQURL     string
+	RabbitMQEnabled bool
+	RocketMQNsAddrs []string
+	RocketMQEnabled bool
 }
 
 // RPCConfig contains addresses for the Kitex RPC microservices
@@ -147,6 +160,14 @@ func Load() (*Config, error) {
 			Password: getEnv("REDIS_PASSWORD", ""),
 			DB:       getIntEnv("REDIS_DB", 0),
 			Enabled:  getEnv("REDIS_ENABLED", "true") == "true",
+		},
+		Messaging: MessagingConfig{
+			KafkaBrokers:    getSliceEnv("KAFKA_BROKERS", []string{"127.0.0.1:9092"}),
+			KafkaEnabled:    getEnv("KAFKA_ENABLED", "false") == "true",
+			RabbitMQURL:     getEnv("RABBITMQ_URL", "amqp://guest:guest@127.0.0.1:5672/"),
+			RabbitMQEnabled: getEnv("RABBITMQ_ENABLED", "false") == "true",
+			RocketMQNsAddrs: getSliceEnv("ROCKETMQ_NAMESRV_ADDRS", []string{"127.0.0.1:9876"}),
+			RocketMQEnabled: getEnv("ROCKETMQ_ENABLED", "false") == "true",
 		},
 	}
 

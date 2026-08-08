@@ -12,6 +12,8 @@ import (
 	"Post_Analyzer_Webserver/internal/bootstrap"
 	"Post_Analyzer_Webserver/internal/cache"
 	"Post_Analyzer_Webserver/internal/logger"
+	"Post_Analyzer_Webserver/internal/messaging/kafka"
+	"Post_Analyzer_Webserver/internal/messaging/rocketmq"
 	"Post_Analyzer_Webserver/internal/service"
 	post "Post_Analyzer_Webserver/kitex_gen/post/postservice"
 
@@ -40,7 +42,25 @@ func main() {
 
 	postCache := cache.NewCache(cfg)
 	svc := service.NewPostService(store, postCache)
-	handler := NewPostServiceImpl(svc)
+
+	events := &EventPublisher{}
+	if cfg.Messaging.KafkaEnabled {
+		events.kafka = kafka.NewProducer(cfg.Messaging.KafkaBrokers, kafka.PostEventsTopic)
+		defer events.kafka.Close()
+		logger.Info("kafka producer enabled", "brokers", cfg.Messaging.KafkaBrokers, "topic", kafka.PostEventsTopic)
+	}
+	if cfg.Messaging.RocketMQEnabled {
+		rmqProducer, err := rocketmq.NewProducer(cfg.Messaging.RocketMQNsAddrs)
+		if err != nil {
+			logger.Error("failed to start rocketmq producer", "error", err)
+			os.Exit(1)
+		}
+		events.rocketmq = rmqProducer
+		defer events.rocketmq.Close()
+		logger.Info("rocketmq producer enabled", "name_servers", cfg.Messaging.RocketMQNsAddrs, "topic", rocketmq.NotificationsTopic)
+	}
+
+	handler := NewPostServiceImpl(svc, events)
 
 	addr := utils.NewNetAddr("tcp", cfg.RPC.PostServiceAddr)
 

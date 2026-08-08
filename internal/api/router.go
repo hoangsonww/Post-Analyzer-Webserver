@@ -85,6 +85,17 @@ func (router *Router) handleV1(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// /api/v1/posts/reanalyze — enqueues an async reanalysis job
+		// (RabbitMQ) instead of computing it inline.
+		if remaining == "/reanalyze" {
+			if r.Method != http.MethodPost {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			router.api.ReanalyzePosts(w, r)
+			return
+		}
+
 		// /api/v1/posts/{id}
 		if remaining != "" && remaining != "/" {
 			switch r.Method {

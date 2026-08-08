@@ -10,6 +10,7 @@ import (
 	"Post_Analyzer_Webserver/internal/api"
 	"Post_Analyzer_Webserver/internal/handlers"
 	"Post_Analyzer_Webserver/internal/logger"
+	"Post_Analyzer_Webserver/internal/messaging/rabbitmq"
 	"Post_Analyzer_Webserver/internal/metrics"
 	"Post_Analyzer_Webserver/internal/middleware"
 	"Post_Analyzer_Webserver/internal/rpcclient"
@@ -59,11 +60,29 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Optional: RabbitMQ for the async reanalysis queue (POST
+	// /api/v1/posts/reanalyze). nil when disabled — the endpoint then
+	// responds 503 instead of failing gateway startup.
+	var rmqClient *rabbitmq.Client
+	if cfg.Messaging.RabbitMQEnabled {
+		rmqClient, err = rabbitmq.Connect(cfg.Messaging.RabbitMQURL)
+		if err != nil {
+			logger.Error("failed to connect to rabbitmq", "error", err)
+			os.Exit(1)
+		}
+		if err := rmqClient.DeclareQueue(rabbitmq.ReanalysisQueue); err != nil {
+			logger.Error("failed to declare rabbitmq queue", "error", err)
+			os.Exit(1)
+		}
+		defer rmqClient.Close()
+		logger.Info("rabbitmq reanalysis queue enabled", "url", cfg.Messaging.RabbitMQURL, "queue", rabbitmq.ReanalysisQueue)
+	}
+
 	// Initialize API handlers. The posts routes require a valid JWT +
 	// ABAC allow decision from authsvc; /api/v1/auth/login (registered
 	// separately below) is the one unauthenticated endpoint that issues
 	// that JWT in the first place.
-	apiHandler := api.NewAPI(postClient, authClient)
+	apiHandler := api.NewAPI(postClient, authClient, rmqClient)
 	apiRouter := api.NewRouter(apiHandler)
 	protectedAPI := middleware.ABAC(authClient, "post", middleware.ActionByMethod)(apiRouter)
 	logger.Info("API handlers initialized")
