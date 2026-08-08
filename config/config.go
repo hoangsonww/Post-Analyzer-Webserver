@@ -14,6 +14,32 @@ type Config struct {
 	Security SecurityConfig
 	Logging  LoggingConfig
 	External ExternalConfig
+	RPC      RPCConfig
+	Auth     AuthConfig
+	Redis    RedisConfig
+}
+
+// RPCConfig contains addresses for the Kitex RPC microservices
+type RPCConfig struct {
+	PostServiceAddr string // host:port the postsvc Kitex server listens on / gateway dials
+	AuthServiceAddr string // host:port the authsvc Kitex server listens on / gateway dials
+	MuxTransport    bool   // enable Kitex connection multiplexing
+}
+
+// AuthConfig contains ABAC / JWT auth configuration
+type AuthConfig struct {
+	JWTSecret     string
+	TokenTTL      time.Duration
+	AdminUsername string
+	AdminPassword string
+}
+
+// RedisConfig contains Redis cache configuration
+type RedisConfig struct {
+	Addr     string
+	Password string
+	DB       int
+	Enabled  bool
 }
 
 // ServerConfig contains server-related configuration
@@ -104,6 +130,23 @@ func Load() (*Config, error) {
 		External: ExternalConfig{
 			JSONPlaceholderURL: getEnv("JSONPLACEHOLDER_URL", "https://jsonplaceholder.typicode.com/posts"),
 			HTTPTimeout:        getDurationEnv("HTTP_TIMEOUT", 30*time.Second),
+		},
+		RPC: RPCConfig{
+			PostServiceAddr: getEnv("POSTSVC_ADDR", "127.0.0.1:9001"),
+			AuthServiceAddr: getEnv("AUTHSVC_ADDR", "127.0.0.1:9002"),
+			MuxTransport:    getEnv("RPC_MUX", "true") == "true",
+		},
+		Auth: AuthConfig{
+			JWTSecret:     getEnv("JWT_SECRET", "dev-only-change-me-in-production"),
+			TokenTTL:      getDurationEnv("JWT_TTL", 24*time.Hour),
+			AdminUsername: getEnv("ADMIN_USERNAME", "admin"),
+			AdminPassword: getEnv("ADMIN_PASSWORD", "admin123"),
+		},
+		Redis: RedisConfig{
+			Addr:     getEnv("REDIS_ADDR", "127.0.0.1:6379"),
+			Password: getEnv("REDIS_PASSWORD", ""),
+			DB:       getIntEnv("REDIS_DB", 0),
+			Enabled:  getEnv("REDIS_ENABLED", "true") == "true",
 		},
 	}
 

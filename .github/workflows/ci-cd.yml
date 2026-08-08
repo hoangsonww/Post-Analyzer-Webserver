@@ -7,7 +7,7 @@ on:
     branches: [ main, master ]
 
 env:
-  GO_VERSION: '1.21'
+  GO_VERSION: '1.22'
   DOCKER_IMAGE: post-analyzer
 
 jobs:
@@ -102,7 +102,7 @@ jobs:
 
       - name: Build application
         run: |
-          go build -v -ldflags="-w -s" -o post-analyzer main_new.go
+          go build -v -ldflags="-w -s" -o post-analyzer ./cmd/gateway
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

@@ -112,13 +112,13 @@ The application will be available at:
 make install
 
 # Run with file storage
-go run main_new.go
+go run ./cmd/gateway
 
 # Run with PostgreSQL
 export DB_TYPE=postgres
 export DB_HOST=localhost
 export DB_PASSWORD=yourpassword
-go run main_new.go
+go run ./cmd/gateway
 
 # Or use Make
 make run
@@ -246,7 +246,7 @@ make docker-up
 #### Render.com
 1. Create a new Web Service
 2. Connect your GitHub repository
-3. Set build command: `go build -o app main_new.go`
+3. Set build command: `go build -o app ./cmd/gateway`
 4. Set start command: `./app`
 5. Add environment variables
 
@@ -374,8 +374,7 @@ Post-Analyzer-Webserver/
 ├── .github/
 │   └── workflows/       # CI/CD pipelines
 ├── assets/              # Static assets
-├── main_new.go          # Application entry point (production)
-├── main.go              # Original simple version
+├── cmd/gateway/main.go  # Application entry point (HTTP/CLI/REPL)
 ├── home.html            # HTML template
 ├── Dockerfile           # Docker image definition
 ├── docker-compose.yml   # Multi-container setup
@@ -394,7 +393,7 @@ Post-Analyzer-Webserver/
 docker-compose logs app
 
 # Verify configuration
-go run main_new.go  # Will show config validation errors
+go run ./cmd/gateway  # Will show config validation errors
 ```
 
 **Database connection failed**

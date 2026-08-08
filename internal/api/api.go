@@ -8,18 +8,21 @@ import (
 	"time"
 
 	"Post_Analyzer_Webserver/internal/errors"
+	"Post_Analyzer_Webserver/internal/export"
 	"Post_Analyzer_Webserver/internal/logger"
 	"Post_Analyzer_Webserver/internal/models"
-	"Post_Analyzer_Webserver/internal/service"
+	"Post_Analyzer_Webserver/internal/rpcclient"
 )
 
-// API handles REST API endpoints
+// API handles REST API endpoints. It talks to the post-analysis RPC
+// service (postsvc) via rpcclient.PostClient rather than embedding
+// business logic in-process.
 type API struct {
-	postService *service.PostService
+	postService rpcclient.PostClient
 }
 
 // NewAPI creates a new API handler
-func NewAPI(postService *service.PostService) *API {
+func NewAPI(postService rpcclient.PostClient) *API {
 	return &API{
 		postService: postService,
 	}
@@ -267,8 +270,14 @@ func (a *API) ExportPosts(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Disposition", "attachment; filename="+filename+".csv")
 	}
 
-	// Export posts
-	if err := a.postService.ExportPosts(ctx, w, format, filter); err != nil {
+	// Export posts (fetched via RPC, formatted here in the gateway)
+	posts, _, err := a.postService.GetAll(ctx, filter, nil)
+	if err != nil {
+		logger.ErrorContext(ctx, "export failed", "error", err)
+		a.respondError(w, r, err)
+		return
+	}
+	if err := export.Write(w, format, posts); err != nil {
 		logger.ErrorContext(ctx, "export failed", "error", err)
 		a.respondError(w, r, err)
 		return

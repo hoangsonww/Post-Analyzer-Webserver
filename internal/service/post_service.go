@@ -2,8 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
@@ -11,6 +9,7 @@ import (
 	"time"
 
 	"Post_Analyzer_Webserver/internal/errors"
+	"Post_Analyzer_Webserver/internal/export"
 	"Post_Analyzer_Webserver/internal/logger"
 	"Post_Analyzer_Webserver/internal/metrics"
 	"Post_Analyzer_Webserver/internal/models"
@@ -251,14 +250,10 @@ func (s *PostService) ExportPosts(ctx context.Context, writer io.Writer, format 
 		return errors.Wrap(err, "failed to retrieve posts for export")
 	}
 
-	switch format {
-	case models.ExportFormatJSON:
-		return s.exportJSON(writer, posts)
-	case models.ExportFormatCSV:
-		return s.exportCSV(writer, posts)
-	default:
+	if format != models.ExportFormatJSON && format != models.ExportFormatCSV {
 		return errors.NewValidationError("unsupported export format")
 	}
+	return export.Write(writer, format, posts)
 }
 
 // AnalyzeCharacterFrequency performs character frequency analysis
@@ -425,39 +420,6 @@ func (s *PostService) calculatePagination(totalItems int, params *models.Paginat
 		HasNext:    params.Page < totalPages,
 		HasPrev:    params.Page > 1,
 	}
-}
-
-func (s *PostService) exportJSON(writer io.Writer, posts []models.Post) error {
-	encoder := json.NewEncoder(writer)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(posts)
-}
-
-func (s *PostService) exportCSV(writer io.Writer, posts []models.Post) error {
-	csvWriter := csv.NewWriter(writer)
-	defer csvWriter.Flush()
-
-	// Write header
-	if err := csvWriter.Write([]string{"ID", "UserID", "Title", "Body", "CreatedAt", "UpdatedAt"}); err != nil {
-		return err
-	}
-
-	// Write data
-	for _, post := range posts {
-		row := []string{
-			fmt.Sprintf("%d", post.ID),
-			fmt.Sprintf("%d", post.UserID),
-			post.Title,
-			post.Body,
-			post.CreatedAt.Format(time.RFC3339),
-			post.UpdatedAt.Format(time.RFC3339),
-		}
-		if err := csvWriter.Write(row); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func (s *PostService) calculateTopCharacters(charFreq map[rune]int, totalChars int) []models.CharacterStat {

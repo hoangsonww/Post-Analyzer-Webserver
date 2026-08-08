@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package events;
+
+option go_package = "Post_Analyzer_Webserver/internal/gen/eventpb";
+
+// PostEvent is the wire format for messages published to Kafka's
+// "post.events" topic — the analytics event-streaming pipeline.
+message PostEvent {
+  string event_id = 1;
+  string event_type = 2; // created | updated | deleted | analyzed
+  int64 post_id = 3;
+  int64 user_id = 4;
+  string title = 5;
+  int64 body_length = 6;
+  int64 occurred_at_unix = 7;
+  map<string, string> attributes = 8;
+}
+
+// ReanalysisJob is the payload for RabbitMQ's async reanalysis task queue.
+message ReanalysisJob {
+  string job_id = 1;
+  int64 post_id = 2;
+  string requested_by = 3;
+  int64 requested_at_unix = 4;
+  bool full_corpus = 5; // true = re-run analysis across all posts
+}
+
+// ScheduledNotification is the payload for RocketMQ delayed/ordered
+// messages — scheduled re-checks and transactional notifications.
+message ScheduledNotification {
+  string notification_id = 1;
+  string kind = 2; // scheduled_recheck | transactional
+  int64 post_id = 3;
+  int64 deliver_at_unix = 4;
+  string message = 5;
+}

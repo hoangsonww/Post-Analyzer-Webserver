@@ -2,7 +2,9 @@
 
 # Variables
 APP_NAME := post-analyzer
-MAIN_FILE := main_new.go
+GATEWAY_PKG := ./cmd/gateway
+POSTSVC_PKG := ./cmd/postsvc
+AUTHSVC_PKG := ./cmd/authsvc
 BINARY := $(APP_NAME)
 DOCKER_IMAGE := $(APP_NAME):latest
 GO := go
@@ -33,11 +35,19 @@ install-tools:
 	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	$(GO) install github.com/swaggo/swag/cmd/swag@latest
 
-## build: Build the application
+## build: Build the gateway binary (HTTP/CLI/REPL entrypoint)
 build:
 	@echo "$(GREEN)Building $(APP_NAME)...$(NC)"
-	$(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BINARY) $(MAIN_FILE)
+	$(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BINARY) $(GATEWAY_PKG)
 	@echo "$(GREEN)Build complete: $(BINARY)$(NC)"
+
+## build-services: Build all microservice binaries (gateway, postsvc, authsvc)
+build-services:
+	@echo "$(GREEN)Building all services...$(NC)"
+	$(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o bin/gateway $(GATEWAY_PKG)
+	$(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o bin/postsvc $(POSTSVC_PKG)
+	$(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o bin/authsvc $(AUTHSVC_PKG)
+	@echo "$(GREEN)Build complete: bin/gateway bin/postsvc bin/authsvc$(NC)"
 
 ## run: Run the application
 run: build
@@ -51,7 +61,7 @@ dev:
 		air; \
 	else \
 		echo "$(YELLOW)Air not installed. Running normally...$(NC)"; \
-		$(GO) run $(MAIN_FILE); \
+		$(GO) run $(GATEWAY_PKG); \
 	fi
 
 ## test: Run all tests
@@ -146,7 +156,7 @@ check: lint test security
 ## prod-build: Build for production
 prod-build:
 	@echo "$(GREEN)Building for production...$(NC)"
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -ldflags="$(LDFLAGS)" -o $(BINARY) $(MAIN_FILE)
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -ldflags="$(LDFLAGS)" -o $(BINARY) $(GATEWAY_PKG)
 	@echo "$(GREEN)Production build complete$(NC)"
 
 ## init: Initialize development environment
