@@ -10,7 +10,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -43,14 +42,7 @@ func main() {
 	if metricsPort == "" {
 		metricsPort = "9101"
 	}
-	go func() {
-		mux := http.NewServeMux()
-		mux.Handle("/metrics", metrics.Handler())
-		logger.Info("analytics-consumer metrics listening", "port", metricsPort)
-		if err := http.ListenAndServe(":"+metricsPort, mux); err != nil { //nolint:gosec // internal metrics endpoint, no external exposure needed
-			logger.Error("metrics server failed", "error", err)
-		}
-	}()
+	metrics.Serve("analytics-consumer", metricsPort)
 
 	consumer := kafka.NewConsumer(cfg.Messaging.KafkaBrokers, kafka.PostEventsTopic, "analytics-consumer")
 	defer consumer.Close()

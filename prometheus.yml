@@ -5,8 +5,38 @@ global:
     monitor: 'post-analyzer-monitor'
 
 scrape_configs:
-  - job_name: 'post-analyzer'
+  - job_name: 'gateway'
     static_configs:
-      - targets: ['app:8080']
+      - targets: ['gateway:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  - job_name: 'postsvc'
+    static_configs:
+      - targets: ['postsvc:9011']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  - job_name: 'authsvc'
+    static_configs:
+      - targets: ['authsvc:9012']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  - job_name: 'analytics-consumer'
+    static_configs:
+      - targets: ['analytics-consumer:9101']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  - job_name: 'reanalysis-worker'
+    static_configs:
+      - targets: ['reanalysis-worker:9102']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  - job_name: 'notification-consumer'
+    static_configs:
+      - targets: ['notification-consumer:9103']
     metrics_path: '/metrics'
     scrape_interval: 10s

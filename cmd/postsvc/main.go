@@ -14,6 +14,7 @@ import (
 	"Post_Analyzer_Webserver/internal/logger"
 	"Post_Analyzer_Webserver/internal/messaging/kafka"
 	"Post_Analyzer_Webserver/internal/messaging/rocketmq"
+	"Post_Analyzer_Webserver/internal/metrics"
 	"Post_Analyzer_Webserver/internal/service"
 	post "Post_Analyzer_Webserver/kitex_gen/post/postservice"
 
@@ -32,6 +33,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
+
+	metricsPort := os.Getenv("METRICS_PORT")
+	if metricsPort == "" {
+		metricsPort = "9011"
+	}
+	metrics.Serve("postsvc", metricsPort)
 
 	store, err := bootstrap.InitStorage(cfg)
 	if err != nil {

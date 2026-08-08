@@ -157,8 +157,26 @@ services:
     image: apache/rocketmq:5.3.1
     container_name: post-analyzer-rocketmq-init
     entrypoint: ["sh", "-c"]
+    # The broker's TCP port opens (and its healthcheck passes) before it
+    # has necessarily finished registering itself and its cluster with
+    # the nameserver — mqadmin can exit 0 without actually creating the
+    # topic if it runs in that window (seen in practice: "Make sure the
+    # specified clusterName exists" printed, exit code still 0). Loop
+    # until topicList actually shows the topic, not just until the
+    # command returns.
     command:
-      - "sh mqadmin updateTopic -n rocketmq-namesrv:9876 -t post-notifications -c DefaultCluster"
+      - |
+        for i in $$(seq 1 20); do
+          sh mqadmin updateTopic -n rocketmq-namesrv:9876 -t post-notifications -c DefaultCluster || true
+          if sh mqadmin topicList -n rocketmq-namesrv:9876 | grep -qx post-notifications; then
+            echo "post-notifications topic confirmed present"
+            exit 0
+          fi
+          echo "topic not confirmed yet, retrying ($$i/20)..."
+          sleep 3
+        done
+        echo "gave up waiting for post-notifications topic to register"
+        exit 1
     depends_on:
       rocketmq-broker:
         condition: service_healthy
@@ -205,6 +223,10 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      rocketmq-broker:
         condition: service_healthy
     restart: unless-stopped
     networks:
@@ -385,6 +407,8 @@ services:
       - "3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./deployments/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deployments/grafana/dashboards:/etc/grafana/dashboards:ro
     depends_on:
       - prometheus
     restart: unless-stopped

@@ -10,7 +10,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -45,14 +44,7 @@ func main() {
 	if metricsPort == "" {
 		metricsPort = "9102"
 	}
-	go func() {
-		mux := http.NewServeMux()
-		mux.Handle("/metrics", metrics.Handler())
-		logger.Info("reanalysis-worker metrics listening", "port", metricsPort)
-		if err := http.ListenAndServe(":"+metricsPort, mux); err != nil { //nolint:gosec // internal metrics endpoint
-			logger.Error("metrics server failed", "error", err)
-		}
-	}()
+	metrics.Serve("reanalysis-worker", metricsPort)
 
 	postClient, err := rpcclient.NewPostClient(cfg.RPC.PostServiceAddr, cfg.RPC.MuxTransport)
 	if err != nil {

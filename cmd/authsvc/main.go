@@ -10,6 +10,7 @@ import (
 	"Post_Analyzer_Webserver/config"
 	"Post_Analyzer_Webserver/internal/abac"
 	"Post_Analyzer_Webserver/internal/logger"
+	"Post_Analyzer_Webserver/internal/metrics"
 	auth "Post_Analyzer_Webserver/kitex_gen/auth/authservice"
 
 	"github.com/cloudwego/kitex/pkg/utils"
@@ -27,6 +28,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
+
+	metricsPort := os.Getenv("METRICS_PORT")
+	if metricsPort == "" {
+		metricsPort = "9012"
+	}
+	metrics.Serve("authsvc", metricsPort)
 
 	users := abac.NewUserStore()
 	users.AddUser(cfg.Auth.AdminUsername, cfg.Auth.AdminPassword, abac.Subject{UserID: 1, Role: "admin"})
