@@ -37,7 +37,13 @@ spec:
             - name: JWT_SECRET
               valueFrom: { secretKeyRef: { name: post-analyzer-secrets, key: JWT_SECRET } }
           readinessProbe:
-            httpGet: { path: /health, port: http }
+            # /readiness actually calls through to postsvc over RPC — a
+            # pod that can't reach its backends must not receive traffic.
+            # /health (used below for liveness) is deliberately shallow:
+            # it must stay 200 even during a transient backend outage, or
+            # kubelet would kill and restart a gateway pod that's otherwise
+            # fine, instead of just pulling it out of rotation.
+            httpGet: { path: /readiness, port: http }
             initialDelaySeconds: 5
             periodSeconds: 5
           livenessProbe:
