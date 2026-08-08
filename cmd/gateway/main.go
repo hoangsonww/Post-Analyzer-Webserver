@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"Post_Analyzer_Webserver/internal/messaging/rabbitmq"
 	"Post_Analyzer_Webserver/internal/metrics"
 	"Post_Analyzer_Webserver/internal/middleware"
+	"Post_Analyzer_Webserver/internal/objectstore"
 	"Post_Analyzer_Webserver/internal/rpcclient"
 
 	"github.com/cloudwego/hertz/pkg/app/server"
@@ -78,11 +80,24 @@ func main() {
 		logger.Info("rabbitmq reanalysis queue enabled", "url", cfg.Messaging.RabbitMQURL, "queue", rabbitmq.ReanalysisQueue)
 	}
 
+	// Optional: MinIO object store for persisted post exports
+	// (GET /api/v1/exports, /api/v1/exports/{key}). nil when disabled.
+	var objectStore *objectstore.Store
+	if cfg.ObjectStore.Enabled {
+		objectStore, err = objectstore.New(context.Background(),
+			cfg.ObjectStore.Endpoint, cfg.ObjectStore.AccessKey, cfg.ObjectStore.SecretKey, cfg.ObjectStore.UseSSL)
+		if err != nil {
+			logger.Error("failed to connect to minio", "error", err)
+			os.Exit(1)
+		}
+		logger.Info("minio object store enabled", "endpoint", cfg.ObjectStore.Endpoint, "bucket", objectstore.ExportsBucket)
+	}
+
 	// Initialize API handlers. The posts routes require a valid JWT +
 	// ABAC allow decision from authsvc; /api/v1/auth/login (registered
 	// separately below) is the one unauthenticated endpoint that issues
 	// that JWT in the first place.
-	apiHandler := api.NewAPI(postClient, authClient, rmqClient)
+	apiHandler := api.NewAPI(postClient, authClient, rmqClient, objectStore)
 	apiRouter := api.NewRouter(apiHandler)
 	protectedAPI := middleware.ABAC(authClient, "post", middleware.ActionByMethod)(apiRouter)
 	logger.Info("API handlers initialized")

@@ -105,6 +105,29 @@ services:
     networks:
       - app-network
 
+  # MinIO — local, self-hosted, S3-API-compatible object storage for
+  # persisted post exports. Console UI on :9001 (minioadmin/minioadmin).
+  minio:
+    image: minio/minio:latest
+    container_name: post-analyzer-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - app-network
+
   # Post Analyzer application
   # NOTE: still builds the pre-split single binary via the root Dockerfile.
   # This is superseded by the dedicated gateway/postsvc/authsvc services
@@ -204,6 +227,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  minio_data:
   prometheus_data:
   grafana_data:
 

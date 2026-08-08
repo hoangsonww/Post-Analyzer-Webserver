@@ -51,6 +51,21 @@ func (router *Router) handleV1(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Export storage endpoints (MinIO-backed)
+	if strings.HasPrefix(path, "/api/v1/exports") {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		remaining := strings.TrimPrefix(path, "/api/v1/exports")
+		if remaining == "" || remaining == "/" {
+			router.api.ListExports(w, r)
+		} else {
+			router.api.GetExport(w, r)
+		}
+		return
+	}
+
 	// Posts endpoints
 	if strings.HasPrefix(path, "/api/v1/posts") {
 		remaining := strings.TrimPrefix(path, "/api/v1/posts")

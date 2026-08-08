@@ -1,7 +1,9 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,6 +16,7 @@ import (
 	"Post_Analyzer_Webserver/internal/messaging/rabbitmq"
 	"Post_Analyzer_Webserver/internal/middleware"
 	"Post_Analyzer_Webserver/internal/models"
+	"Post_Analyzer_Webserver/internal/objectstore"
 	"Post_Analyzer_Webserver/internal/rpcclient"
 
 	"github.com/google/uuid"
@@ -25,16 +28,19 @@ import (
 type API struct {
 	postService rpcclient.PostClient
 	authService rpcclient.AuthClient
-	rabbitmq    *rabbitmq.Client // optional: nil disables ReanalyzePosts
+	rabbitmq    *rabbitmq.Client   // optional: nil disables ReanalyzePosts
+	objects     *objectstore.Store // optional: nil disables export persistence/listing
 }
 
-// NewAPI creates a new API handler. rmq may be nil when the RabbitMQ
-// reanalysis queue isn't enabled — ReanalyzePosts then returns 503.
-func NewAPI(postService rpcclient.PostClient, authService rpcclient.AuthClient, rmq *rabbitmq.Client) *API {
+// NewAPI creates a new API handler. rmq/objects may be nil when the
+// corresponding broker/store isn't enabled; the affected endpoints then
+// return 503 instead of failing gateway startup.
+func NewAPI(postService rpcclient.PostClient, authService rpcclient.AuthClient, rmq *rabbitmq.Client, objects *objectstore.Store) *API {
 	return &API{
 		postService: postService,
 		authService: authService,
 		rabbitmq:    rmq,
+		objects:     objects,
 	}
 }
 
@@ -303,15 +309,15 @@ func (a *API) ExportPosts(w http.ResponseWriter, r *http.Request) {
 	}
 	filter.Search = r.URL.Query().Get("search")
 
-	// Set headers
 	filename := "posts_export_" + time.Now().Format("20060102_150405")
-	if format == models.ExportFormatJSON {
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Content-Disposition", "attachment; filename="+filename+".json")
-	} else {
-		w.Header().Set("Content-Type", "text/csv")
-		w.Header().Set("Content-Disposition", "attachment; filename="+filename+".csv")
+	contentType := "application/json"
+	ext := ".json"
+	if format == models.ExportFormatCSV {
+		contentType = "text/csv"
+		ext = ".csv"
 	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Disposition", "attachment; filename="+filename+ext)
 
 	// Export posts (fetched via RPC, formatted here in the gateway)
 	posts, _, err := a.postService.GetAll(ctx, filter, nil)
@@ -320,10 +326,25 @@ func (a *API) ExportPosts(w http.ResponseWriter, r *http.Request) {
 		a.respondError(w, r, err)
 		return
 	}
-	if err := export.Write(w, format, posts); err != nil {
+
+	var buf bytes.Buffer
+	if err := export.Write(&buf, format, posts); err != nil {
 		logger.ErrorContext(ctx, "export failed", "error", err)
 		a.respondError(w, r, err)
 		return
+	}
+
+	if a.objects != nil {
+		key := "exports/" + filename + ext
+		if err := a.objects.Put(ctx, key, bytes.NewReader(buf.Bytes()), int64(buf.Len()), contentType); err != nil {
+			logger.WarnContext(ctx, "failed to persist export to object store", "key", key, "error", err)
+		} else {
+			logger.InfoContext(ctx, "export persisted to object store", "key", key, "size", buf.Len())
+		}
+	}
+
+	if _, err := w.Write(buf.Bytes()); err != nil {
+		logger.ErrorContext(ctx, "failed to write export response", "error", err)
 	}
 
 	logger.InfoContext(ctx, "posts exported", "format", format)
@@ -370,6 +391,61 @@ func (a *API) ReanalyzePosts(w http.ResponseWriter, r *http.Request) {
 			Timestamp: time.Now(),
 		},
 	})
+}
+
+// ListExports handles GET /api/v1/exports: lists previously generated
+// exports persisted to the MinIO object store.
+func (a *API) ListExports(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if a.objects == nil {
+		a.respondError(w, r, errors.ErrServiceUnavailable)
+		return
+	}
+
+	objs, err := a.objects.List(ctx, "exports/")
+	if err != nil {
+		a.respondError(w, r, errors.NewInternalError(err))
+		return
+	}
+
+	a.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"data": objs,
+		"meta": &models.ResponseMeta{
+			RequestID: getRequestID(ctx),
+			Timestamp: time.Now(),
+		},
+	})
+}
+
+// GetExport handles GET /api/v1/exports/{key}: streams a previously
+// generated export back from the MinIO object store.
+func (a *API) GetExport(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if a.objects == nil {
+		a.respondError(w, r, errors.ErrServiceUnavailable)
+		return
+	}
+
+	key := strings.TrimPrefix(r.URL.Path, "/api/v1/exports/")
+	if key == "" {
+		a.respondError(w, r, errors.NewValidationError("export key is required"))
+		return
+	}
+
+	obj, err := a.objects.Get(ctx, "exports/"+key)
+	if err != nil {
+		a.respondError(w, r, errors.NewNotFound("Export"))
+		return
+	}
+	defer obj.Close()
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", "attachment; filename="+key)
+	if _, err := io.Copy(w, obj); err != nil {
+		logger.ErrorContext(ctx, "failed to stream export", "key", key, "error", err)
+	}
 }
 
 // AnalyzePosts handles GET /api/v1/posts/analytics
