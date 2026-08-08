@@ -41,6 +41,16 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (router *Router) handleV1(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
+	// Auth endpoints (unauthenticated: this is where a token is obtained)
+	if path == "/api/v1/auth/login" {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		router.api.Login(w, r)
+		return
+	}
+
 	// Posts endpoints
 	if strings.HasPrefix(path, "/api/v1/posts") {
 		remaining := strings.TrimPrefix(path, "/api/v1/posts")

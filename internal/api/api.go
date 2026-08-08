@@ -14,18 +14,53 @@ import (
 	"Post_Analyzer_Webserver/internal/rpcclient"
 )
 
-// API handles REST API endpoints. It talks to the post-analysis RPC
-// service (postsvc) via rpcclient.PostClient rather than embedding
-// business logic in-process.
+// API handles REST API endpoints. It talks to the post-analysis and auth
+// RPC services (postsvc, authsvc) via the rpcclient package rather than
+// embedding business logic in-process.
 type API struct {
 	postService rpcclient.PostClient
+	authService rpcclient.AuthClient
 }
 
 // NewAPI creates a new API handler
-func NewAPI(postService rpcclient.PostClient) *API {
+func NewAPI(postService rpcclient.PostClient, authService rpcclient.AuthClient) *API {
 	return &API{
 		postService: postService,
+		authService: authService,
 	}
+}
+
+// Login handles POST /api/v1/auth/login, exchanging credentials for a JWT
+// issued by authsvc.
+func (a *API) Login(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		a.respondError(w, r, errors.NewValidationError("invalid request body"))
+		return
+	}
+
+	token, subj, err := a.authService.Login(ctx, req.Username, req.Password)
+	if err != nil {
+		a.respondError(w, r, errors.ErrUnauthorized)
+		return
+	}
+
+	a.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"data": map[string]interface{}{
+			"token":    token,
+			"username": subj.Username,
+			"role":     subj.Role,
+		},
+		"meta": &models.ResponseMeta{
+			RequestID: getRequestID(ctx),
+			Timestamp: time.Now(),
+		},
+	})
 }
 
 // ListPosts handles GET /api/v1/posts

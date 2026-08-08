@@ -46,11 +46,17 @@ func main() {
 		"postsvc_addr", cfg.RPC.PostServiceAddr,
 	)
 
-	// Dial the post-analysis RPC service (postsvc). The gateway holds no
-	// database connection of its own — all storage lives behind postsvc.
+	// Dial the post-analysis and auth RPC services. The gateway holds no
+	// database connection of its own — all storage lives behind postsvc,
+	// and all auth/ABAC decisions live behind authsvc.
 	postClient, err := rpcclient.NewPostClient(cfg.RPC.PostServiceAddr, cfg.RPC.MuxTransport)
 	if err != nil {
 		logger.Error("failed to create postsvc RPC client", "error", err)
+		os.Exit(1)
+	}
+	authClient, err := rpcclient.NewAuthClient(cfg.RPC.AuthServiceAddr, cfg.RPC.MuxTransport)
+	if err != nil {
+		logger.Error("failed to create authsvc RPC client", "error", err)
 		os.Exit(1)
 	}
 
@@ -58,9 +64,13 @@ func main() {
 	_ = cache.NewCache(cfg) // Cache initialized for future use
 	logger.Info("cache initialized", "type", "memory")
 
-	// Initialize API handlers
-	apiHandler := api.NewAPI(postClient)
+	// Initialize API handlers. The posts routes require a valid JWT +
+	// ABAC allow decision from authsvc; /api/v1/auth/login (registered
+	// separately below) is the one unauthenticated endpoint that issues
+	// that JWT in the first place.
+	apiHandler := api.NewAPI(postClient, authClient)
 	apiRouter := api.NewRouter(apiHandler)
+	protectedAPI := middleware.ABAC(authClient, "post", middleware.ActionByMethod)(apiRouter)
 	logger.Info("API handlers initialized")
 
 	// Initialize web handlers
@@ -85,9 +95,11 @@ func main() {
 	mux.HandleFunc("/readiness", webHandlers.Readiness)
 	mux.Handle("/metrics", metrics.Handler())
 
-	// API endpoints (v1)
-	mux.Handle("/api/", apiRouter)
-	mux.Handle("/api/v1/", apiRouter)
+	// API endpoints (v1). Login is registered as an exact path so it wins
+	// over the "/api/v1/" prefix match and stays outside the ABAC gate.
+	mux.HandleFunc("/api/v1/auth/login", apiHandler.Login)
+	mux.Handle("/api/", protectedAPI)
+	mux.Handle("/api/v1/", protectedAPI)
 
 	// Web interface endpoints
 	mux.HandleFunc("/", webHandlers.Home)
@@ -113,6 +125,7 @@ func main() {
 		middleware.CORS(cfg.Security.AllowedOrigins),
 		rateLimiter.Middleware,
 		middleware.MaxBodySize(cfg.Security.MaxBodySize),
+		middleware.Timeout(cfg.Server.WriteTimeout),
 		middleware.Compression,
 		metrics.Middleware,
 	)(mux)
