@@ -6,10 +6,71 @@
 
 <p align="center">
    <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
-   <img src="https://img.shields.io/badge/Go-1.25-blue?style=flat&logo=go" alt="Go version">
+   <img src="https://img.shields.io/badge/Go-1.25-00ADD8?style=flat&logo=go&logoColor=white" alt="Go version">
    <img src="https://img.shields.io/badge/Status-Production%20Ready-success" alt="Status">
    <img src="https://img.shields.io/badge/Version-3.0.0-blue" alt="Version">
    <img src="https://img.shields.io/badge/Architecture-Microservices-orange" alt="Architecture">
+</p>
+
+<p align="center">
+   <b>RPC &amp; HTTP</b><br>
+   <img src="https://img.shields.io/badge/Kitex-RPC-1E90FF?style=flat" alt="Kitex">
+   <img src="https://img.shields.io/badge/Hertz-HTTP-1E90FF?style=flat" alt="Hertz">
+   <img src="https://img.shields.io/badge/Sonic-JSON-1E90FF?style=flat" alt="Sonic">
+   <img src="https://img.shields.io/badge/Netpoll-Networking-1E90FF?style=flat" alt="Netpoll">
+   <img src="https://img.shields.io/badge/TTHeader-Transport-1E90FF?style=flat" alt="TTHeader">
+   <img src="https://img.shields.io/badge/Thrift-IDL-6A5ACD?style=flat" alt="Thrift">
+   <img src="https://img.shields.io/badge/Protocol%20Buffers-IDL-6A5ACD?style=flat&logo=googleprotocolbuffers&logoColor=white" alt="Protobuf">
+   <img src="https://img.shields.io/badge/OpenAPI-3.0.3-6BA539?style=flat&logo=openapiinitiative&logoColor=white" alt="OpenAPI">
+   <img src="https://img.shields.io/badge/Postman-Collection-FF6C37?style=flat&logo=postman&logoColor=white" alt="Postman">
+</p>
+
+<p align="center">
+   <b>Auth &amp; Security</b><br>
+   <img src="https://img.shields.io/badge/JWT-Auth-000000?style=flat&logo=jsonwebtokens&logoColor=white" alt="JWT">
+   <img src="https://img.shields.io/badge/ABAC-Authorization-red?style=flat" alt="ABAC">
+   <img src="https://img.shields.io/badge/bcrypt-Password%20Hashing-lightgrey?style=flat" alt="bcrypt">
+   <img src="https://img.shields.io/badge/Trivy-Security%20Scan-1904DA?style=flat" alt="Trivy">
+</p>
+
+<p align="center">
+   <b>Data &amp; Messaging</b><br>
+   <img src="https://img.shields.io/badge/PostgreSQL-Database-4169E1?style=flat&logo=postgresql&logoColor=white" alt="PostgreSQL">
+   <img src="https://img.shields.io/badge/Redis-Cache-DC382D?style=flat&logo=redis&logoColor=white" alt="Redis">
+   <img src="https://img.shields.io/badge/Apache%20Kafka-Event%20Log-231F20?style=flat&logo=apachekafka&logoColor=white" alt="Kafka">
+   <img src="https://img.shields.io/badge/RabbitMQ-Work%20Queue-FF6600?style=flat&logo=rabbitmq&logoColor=white" alt="RabbitMQ">
+   <img src="https://img.shields.io/badge/RocketMQ-Delayed%20Delivery-D77310?style=flat&logo=apacherocketmq&logoColor=white" alt="RocketMQ">
+   <img src="https://img.shields.io/badge/MinIO-Object%20Storage-C72E49?style=flat&logo=minio&logoColor=white" alt="MinIO">
+</p>
+
+<p align="center">
+   <b>ML &amp; Observability</b><br>
+   <img src="https://img.shields.io/badge/Nvidia%20Triton-Inference%20Server-76B900?style=flat&logo=nvidia&logoColor=white" alt="Nvidia Triton">
+   <img src="https://img.shields.io/badge/ONNX-Model%20Format-005CED?style=flat&logo=onnx&logoColor=white" alt="ONNX">
+   <img src="https://img.shields.io/badge/scikit--learn-Model%20Training-F7931E?style=flat&logo=scikitlearn&logoColor=white" alt="scikit-learn">
+   <img src="https://img.shields.io/badge/Prometheus-Metrics-E6522C?style=flat&logo=prometheus&logoColor=white" alt="Prometheus">
+   <img src="https://img.shields.io/badge/Grafana-Dashboards-F46800?style=flat&logo=grafana&logoColor=white" alt="Grafana">
+</p>
+
+<p align="center">
+   <b>Edge, Containers &amp; Orchestration</b><br>
+   <img src="https://img.shields.io/badge/nginx-Load%20Balancer-009639?style=flat&logo=nginx&logoColor=white" alt="nginx">
+   <img src="https://img.shields.io/badge/Docker-Containers-2496ED?style=flat&logo=docker&logoColor=white" alt="Docker">
+   <img src="https://img.shields.io/badge/Docker%20Compose-16%20services-2496ED?style=flat&logo=docker&logoColor=white" alt="Docker Compose">
+   <img src="https://img.shields.io/badge/Kubernetes-Kustomize-326CE5?style=flat&logo=kubernetes&logoColor=white" alt="Kubernetes">
+   <img src="https://img.shields.io/badge/Argo%20Rollouts-Canary%2FBlue--Green-EF7B4D?style=flat&logo=argo&logoColor=white" alt="Argo Rollouts">
+   <img src="https://img.shields.io/badge/Istio-Service%20Mesh-466BB0?style=flat&logo=istio&logoColor=white" alt="Istio">
+</p>
+
+<p align="center">
+   <b>Infrastructure as Code &amp; CI</b><br>
+   <img src="https://img.shields.io/badge/Terraform-AWS%20%7C%20Azure%20%7C%20OCI-7B42BC?style=flat&logo=terraform&logoColor=white" alt="Terraform">
+   <img src="https://img.shields.io/badge/AWS-EKS%20%7C%20RDS%20%7C%20CloudFront-232F3E?style=flat&logo=amazonwebservices&logoColor=white" alt="AWS">
+   <img src="https://img.shields.io/badge/Azure-AKS%20%7C%20Front%20Door-0078D4?style=flat&logo=microsoftazure&logoColor=white" alt="Azure">
+   <img src="https://img.shields.io/badge/OCI-OKE-F80000?style=flat&logo=oracle&logoColor=white" alt="Oracle Cloud Infrastructure">
+   <img src="https://img.shields.io/badge/GitHub%20Actions-CI-2088FF?style=flat&logo=githubactions&logoColor=white" alt="GitHub Actions">
+   <img src="https://img.shields.io/badge/golangci--lint-0%20issues-brightgreen?style=flat" alt="golangci-lint">
+   <img src="https://img.shields.io/badge/Make-Build%20Automation-lightgrey?style=flat&logo=gnu&logoColor=white" alt="Makefile">
 </p>
 
 An enterprise-grade, microservices-based backend for storing, serving, and analyzing "posts" (title/body records with per-character-frequency analytics and ML-driven sentiment classification). What started as a single-file Go web server is now a full CloudWeGo-based (Kitex + Hertz + Sonic + Netpoll) microservices system with RPC and HTTP surfaces, ABAC authorization, three distinct message brokers, local S3-compatible object storage, an Nvidia Triton ML integration, full observability, and Kubernetes/Terraform deployment artifacts for AWS, Azure, and OCI.
