@@ -2,15 +2,29 @@ openapi: 3.0.3
 info:
   title: Post Analyzer Webserver API
   description: |
-    A production-ready web application for analyzing and managing posts.
+    Enterprise-grade post management and analysis platform, backed by a
+    Kitex RPC microservices architecture (gateway, postsvc, authsvc) behind
+    a Hertz HTTP edge.
 
-    Features:
-    - Fetch posts from external APIs
-    - Store and manage posts
-    - Character frequency analysis
-    - Prometheus metrics
-    - Health checks
-  version: 2.0.0
+    ## Architecture
+    The HTTP API below is served entirely by the **gateway** service. The
+    gateway holds no data of its own — `posts` requests are proxied over
+    Kitex RPC to `postsvc`, and every request (except `/auth/login` and the
+    unauthenticated health/metrics endpoints) is authorized against
+    `authsvc`'s ABAC policy decision point.
+
+    ## Authentication
+    `POST /api/v1/auth/login` exchanges username/password for a JWT. Send
+    it as `Authorization: Bearer <token>` on every other `/api/v1/*`
+    request. Demo accounts: `admin/admin123` (role `admin`), `editor/editor123`
+    (role `editor`), `viewer/viewer123` (role `viewer`).
+
+    ## ABAC policy summary
+    - `viewer`: read-only.
+    - `editor`: read + write; delete requires an `X-MFA-Verified: true`
+      header (attribute-based condition, not just role membership).
+    - `admin`: unrestricted.
+  version: 3.0.0
   contact:
     name: Post Analyzer Team
     url: https://github.com/hoangsonww/Post-Analyzer-Webserver
@@ -20,317 +34,443 @@ info:
 
 servers:
   - url: http://localhost:8080
-    description: Development server
-  - url: https://post-analyzer-webserver.onrender.com
-    description: Production server
+    description: Gateway, direct (local dev)
+  - url: http://localhost
+    description: Through nginx (docker-compose)
 
 tags:
-  - name: Health
-    description: Health and readiness checks
+  - name: Auth
+    description: Login / JWT issuance
   - name: Posts
-    description: Post management operations
+    description: Post CRUD and bulk operations
   - name: Analysis
-    description: Character analysis operations
-  - name: Metrics
-    description: Prometheus metrics
-
-paths:
-  /health:
-    get:
-      tags:
-        - Health
-      summary: Health check
-      description: Returns the health status of the application
-      operationId: healthCheck
-      responses:
-        '200':
-          description: Application is healthy
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: healthy
-                  timestamp:
-                    type: string
-                    format: date-time
-
-  /readiness:
-    get:
-      tags:
-        - Health
-      summary: Readiness check
-      description: Returns whether the application is ready to serve traffic
-      operationId: readinessCheck
-      responses:
-        '200':
-          description: Application is ready
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: ready
-                  timestamp:
-                    type: string
-                    format: date-time
-        '503':
-          description: Application is not ready
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /metrics:
-    get:
-      tags:
-        - Metrics
-      summary: Prometheus metrics
-      description: Returns Prometheus metrics for monitoring
-      operationId: getMetrics
-      responses:
-        '200':
-          description: Metrics in Prometheus format
-          content:
-            text/plain:
-              schema:
-                type: string
-
-  /:
-    get:
-      tags:
-        - Posts
-      summary: Home page
-      description: Displays the home page with all posts
-      operationId: getHome
-      responses:
-        '200':
-          description: HTML page with posts
-          content:
-            text/html:
-              schema:
-                type: string
-
-  /fetch:
-    get:
-      tags:
-        - Posts
-      summary: Fetch posts from external API
-      description: Fetches posts from JSONPlaceholder API and stores them
-      operationId: fetchPosts
-      responses:
-        '200':
-          description: Posts fetched successfully
-          content:
-            text/html:
-              schema:
-                type: string
-        '500':
-          description: Failed to fetch or store posts
-          content:
-            text/html:
-              schema:
-                type: string
-
-  /add:
-    get:
-      tags:
-        - Posts
-      summary: Display add post form
-      description: Shows the form to add a new post
-      operationId: showAddPostForm
-      responses:
-        '200':
-          description: Add post form
-          content:
-            text/html:
-              schema:
-                type: string
-
-    post:
-      tags:
-        - Posts
-      summary: Add a new post
-      description: Creates a new post with the provided title and body
-      operationId: addPost
-      requestBody:
-        required: true
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              required:
-                - title
-                - body
-              properties:
-                title:
-                  type: string
-                  maxLength: 500
-                  description: Post title
-                  example: My First Post
-                body:
-                  type: string
-                  maxLength: 10000
-                  description: Post body
-                  example: This is the content of my first post
-      responses:
-        '200':
-          description: Post added successfully
-          content:
-            text/html:
-              schema:
-                type: string
-        '400':
-          description: Invalid input
-          content:
-            text/html:
-              schema:
-                type: string
-        '500':
-          description: Failed to create post
-          content:
-            text/html:
-              schema:
-                type: string
-
-  /analyze:
-    get:
-      tags:
-        - Analysis
-      summary: Analyze character frequency
-      description: Performs character frequency analysis on all posts
-      operationId: analyzePosts
-      responses:
-        '200':
-          description: Analysis results
-          content:
-            text/html:
-              schema:
-                type: string
-        '500':
-          description: Analysis failed
-          content:
-            text/html:
-              schema:
-                type: string
+    description: Character-frequency analysis and async reanalysis
+  - name: Exports
+    description: Generated post exports, persisted to MinIO
+  - name: ML
+    description: Nvidia Triton sentiment classification
+  - name: Health
+    description: Health, readiness, and Prometheus metrics
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    PostId:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer }
+      description: Post ID
+    MfaVerifiedHeader:
+      name: X-MFA-Verified
+      in: header
+      required: false
+      schema: { type: string, enum: ["true", "false"] }
+      description: Required "true" for editor-role DELETE requests (ABAC attribute condition)
+
   schemas:
     Post:
       type: object
-      required:
-        - userId
-        - id
-        - title
-        - body
       properties:
-        userId:
-          type: integer
-          description: ID of the user who created the post
-          example: 1
-        id:
-          type: integer
-          description: Unique post identifier
-          example: 1
-        title:
-          type: string
-          maxLength: 500
-          description: Post title
-          example: Sample Post Title
-        body:
-          type: string
-          maxLength: 10000
-          description: Post content
-          example: This is the body of the post with some interesting content.
-        createdAt:
-          type: string
-          format: date-time
-          description: Timestamp when post was created
-        updatedAt:
-          type: string
-          format: date-time
-          description: Timestamp when post was last updated
+        id: { type: integer, example: 1 }
+        userId: { type: integer, example: 1 }
+        title: { type: string, example: "Hello World" }
+        body: { type: string, example: "Post content here" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreatePostRequest:
+      type: object
+      required: [title, body]
+      properties:
+        userId: { type: integer, example: 1 }
+        title: { type: string, maxLength: 500 }
+        body: { type: string, maxLength: 10000 }
+
+    UpdatePostRequest:
+      type: object
+      properties:
+        title: { type: string, maxLength: 500 }
+        body: { type: string, maxLength: 10000 }
+
+    BulkCreateRequest:
+      type: object
+      required: [posts]
+      properties:
+        posts:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          items: { $ref: "#/components/schemas/CreatePostRequest" }
+
+    BulkCreateResponse:
+      type: object
+      properties:
+        created: { type: integer }
+        failed: { type: integer }
+        errors: { type: array, items: { type: string } }
+        postIds: { type: array, items: { type: integer } }
+
+    PaginationMeta:
+      type: object
+      properties:
+        page: { type: integer }
+        pageSize: { type: integer }
+        totalItems: { type: integer }
+        totalPages: { type: integer }
+        hasNext: { type: boolean }
+        hasPrev: { type: boolean }
+
+    ResponseMeta:
+      type: object
+      properties:
+        requestId: { type: string }
+        timestamp: { type: string, format: date-time }
+        duration: { type: integer, description: "nanoseconds, when present" }
+
+    AnalyticsResult:
+      type: object
+      properties:
+        totalPosts: { type: integer }
+        totalCharacters: { type: integer }
+        uniqueChars: { type: integer }
+        topCharacters:
+          type: array
+          items:
+            type: object
+            properties:
+              character: { type: string }
+              count: { type: integer }
+              frequency: { type: number }
+        statistics:
+          type: object
+          properties:
+            averagePostLength: { type: number }
+            medianPostLength: { type: integer }
+            postsPerUser: { type: object, additionalProperties: { type: integer } }
+            timeDistribution: { type: object, additionalProperties: { type: integer } }
+
+    ExportObjectInfo:
+      type: object
+      properties:
+        Key: { type: string, example: "exports/posts_export_20260101_120000.json" }
+        Size: { type: integer }
+        LastModified: { type: string, format: date-time }
+        ContentType: { type: string }
+
+    SentimentResponse:
+      type: object
+      properties:
+        label: { type: string, enum: [positive, negative, neutral] }
+        probabilities:
+          type: object
+          additionalProperties: { type: number }
+          example: { positive: 0.79, negative: 0.12, neutral: 0.09 }
 
     Error:
       type: object
       properties:
         error:
-          type: string
-          description: Error message
-          example: Internal server error
-        timestamp:
-          type: string
-          format: date-time
-          description: When the error occurred
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            fields: { type: object, additionalProperties: { type: string } }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
 
-    HealthStatus:
-      type: object
-      properties:
-        status:
-          type: string
-          enum: [healthy, unhealthy, ready, not ready]
-          description: Status of the service
-        timestamp:
-          type: string
-          format: date-time
-          description: Timestamp of the status check
+security:
+  - bearerAuth: []
 
-  securitySchemes:
-    ApiKey:
-      type: apiKey
-      in: header
-      name: X-API-Key
-      description: API key for authentication (not currently implemented)
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness check (unauthenticated)
+      security: []
+      responses:
+        "200": { description: Healthy }
 
-  parameters:
-    RequestID:
-      name: X-Request-ID
-      in: header
-      description: Unique request identifier for tracing
-      schema:
-        type: string
-        format: uuid
+  /readiness:
+    get:
+      tags: [Health]
+      summary: Readiness check — verifies postsvc RPC is reachable (unauthenticated)
+      security: []
+      responses:
+        "200": { description: Ready }
+        "503": { description: Not ready }
 
-  responses:
-    NotFound:
-      description: Resource not found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
+  /metrics:
+    get:
+      tags: [Health]
+      summary: Prometheus metrics (unauthenticated)
+      security: []
+      responses:
+        "200":
+          description: Prometheus text exposition format
+          content:
+            text/plain: { schema: { type: string } }
 
-    BadRequest:
-      description: Invalid request parameters
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Exchange credentials for a JWT
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string, example: admin }
+                password: { type: string, example: admin123 }
+      responses:
+        "200":
+          description: Login succeeded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      token: { type: string }
+                      username: { type: string }
+                      role: { type: string }
+                  meta: { $ref: "#/components/schemas/ResponseMeta" }
+        "401":
+          description: Invalid credentials
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Error" } }
 
-    InternalError:
-      description: Internal server error
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
+  /api/v1/posts:
+    get:
+      tags: [Posts]
+      summary: List posts
+      description: "ABAC action: read"
+      parameters:
+        - { name: userId, in: query, schema: { type: integer } }
+        - { name: search, in: query, schema: { type: string } }
+        - { name: sortBy, in: query, schema: { type: string, enum: [id, title, createdAt, updatedAt] } }
+        - { name: sortOrder, in: query, schema: { type: string, enum: [asc, desc] } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, default: 20, maximum: 100 } }
+      responses:
+        "200":
+          description: Paginated post list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/Post" } }
+                  pagination: { $ref: "#/components/schemas/PaginationMeta" }
+                  meta: { $ref: "#/components/schemas/ResponseMeta" }
+        "401": { description: Missing/invalid token }
+        "403": { description: ABAC denied }
+    post:
+      tags: [Posts]
+      summary: Create a post
+      description: "ABAC action: write"
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: "#/components/schemas/CreatePostRequest" } }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Post" }
+                  meta: { $ref: "#/components/schemas/ResponseMeta" }
+        "422": { description: Validation error }
 
-    TooManyRequests:
-      description: Rate limit exceeded
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              error:
-                type: string
-                example: Rate limit exceeded. Please try again later.
+  /api/v1/posts/{id}:
+    get:
+      tags: [Posts]
+      summary: Get a post by ID
+      description: "ABAC action: read"
+      parameters: [{ $ref: "#/components/parameters/PostId" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Post" }
+        "404": { description: Not found }
+    put:
+      tags: [Posts]
+      summary: Update a post
+      description: "ABAC action: write"
+      parameters: [{ $ref: "#/components/parameters/PostId" }]
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: "#/components/schemas/UpdatePostRequest" } }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Post" }
+        "404": { description: Not found }
+    delete:
+      tags: [Posts]
+      summary: Delete a post
+      description: "ABAC action: delete. Editors additionally need X-MFA-Verified: true."
+      parameters:
+        - { $ref: "#/components/parameters/PostId" }
+        - { $ref: "#/components/parameters/MfaVerifiedHeader" }
+      responses:
+        "200": { description: Deleted }
+        "403": { description: ABAC denied (e.g. editor without MFA header) }
+        "404": { description: Not found }
 
-x-readme:
-  samples-languages:
-    - curl
-    - javascript
-    - python
-    - go
+  /api/v1/posts/bulk:
+    post:
+      tags: [Posts]
+      summary: Bulk-create posts
+      description: "ABAC action: write"
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: "#/components/schemas/BulkCreateRequest" } }
+      responses:
+        "201": { description: All created }
+        "207":
+          description: Partial success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/BulkCreateResponse" }
+
+  /api/v1/posts/export:
+    get:
+      tags: [Exports]
+      summary: Export posts as JSON or CSV
+      description: |
+        Streams the export in the response body AND (when MinIO is
+        enabled) persists a copy — see GET /api/v1/exports to list them.
+        ABAC action: read.
+      parameters:
+        - { name: format, in: query, schema: { type: string, enum: [json, csv], default: json } }
+        - { name: userId, in: query, schema: { type: integer } }
+        - { name: search, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Export file
+          content:
+            application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Post" } } }
+            text/csv: { schema: { type: string } }
+
+  /api/v1/posts/analytics:
+    get:
+      tags: [Analysis]
+      summary: Character-frequency analysis across all posts (synchronous)
+      description: "ABAC action: read"
+      responses:
+        "200":
+          description: Analysis result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/AnalyticsResult" }
+                  meta: { $ref: "#/components/schemas/ResponseMeta" }
+
+  /api/v1/posts/reanalyze:
+    post:
+      tags: [Analysis]
+      summary: Enqueue an async reanalysis job (RabbitMQ)
+      description: |
+        Returns immediately with a job ID; cmd/reanalysis-worker performs
+        the actual analysis asynchronously. Requires RABBITMQ_ENABLED=true
+        on the gateway. ABAC action: write.
+      responses:
+        "202":
+          description: Job queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      jobId: { type: string }
+                      status: { type: string, example: queued }
+        "503": { description: RabbitMQ not enabled }
+
+  /api/v1/exports:
+    get:
+      tags: [Exports]
+      summary: List previously generated exports (MinIO-backed)
+      description: "ABAC action: read"
+      responses:
+        "200":
+          description: List of stored exports
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/ExportObjectInfo" } }
+        "503": { description: MinIO not enabled }
+
+  /api/v1/exports/{key}:
+    get:
+      tags: [Exports]
+      summary: Download a previously generated export by key
+      description: "ABAC action: read"
+      parameters:
+        - { name: key, in: path, required: true, schema: { type: string }, example: "posts_export_20260101_120000.json" }
+      responses:
+        "200": { description: File contents }
+        "404": { description: Export not found }
+        "503": { description: MinIO not enabled }
+
+  /api/v1/ml/sentiment:
+    post:
+      tags: [ML]
+      summary: Classify the sentiment of arbitrary text (Nvidia Triton)
+      description: |
+        Same model postsvc uses to auto-enrich newly created posts (when
+        both Kafka and Triton are enabled). ABAC action: write.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, example: "I love this, fantastic work" }
+      responses:
+        "200":
+          description: Classification result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/SentimentResponse" }
+        "503": { description: Triton not enabled }
