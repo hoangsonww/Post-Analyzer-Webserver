@@ -51,6 +51,8 @@ tags:
     description: Nvidia Triton sentiment classification
   - name: Health
     description: Health, readiness, and Prometheus metrics
+  - name: Admin
+    description: ABAC admin-only operational status (covered by the admin-full-access policy)
 
 components:
   securitySchemes:
@@ -473,4 +475,38 @@ paths:
                 type: object
                 properties:
                   data: { $ref: "#/components/schemas/SentimentResponse" }
+
+  /api/v1/admin/status:
+    get:
+      tags: [Admin]
+      summary: Operational status — environment, uptime, RPC addresses, which optional integrations are enabled
+      description: |
+        ABAC-gated separately from the `post` resource (resource: `admin`,
+        action: `read`) — covered by the `admin-full-access` wildcard
+        policy, so only the `admin` role can call this. Used by the
+        dashboard's admin panel.
+      responses:
+        "200":
+          description: Status snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      environment: { type: string, example: production }
+                      uptime: { type: string, example: "1h23m45.678s" }
+                      integrations:
+                        type: object
+                        additionalProperties: { type: boolean }
+                        example: { redis: true, kafka: true, rabbitmq: true, rocketmq: true, minio: true, triton: true, rpc_mux: true }
+                      rpc:
+                        type: object
+                        properties:
+                          postsvc: { type: string, example: "postsvc:9001" }
+                          authsvc: { type: string, example: "authsvc:9002" }
+                      requestedBy: { type: string, example: admin }
+        "403": { description: Forbidden — caller is not an admin }
         "503": { description: Triton not enabled }

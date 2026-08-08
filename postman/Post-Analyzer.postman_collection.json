@@ -286,6 +286,29 @@
       ]
     },
     {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Admin Status",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin/status"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('has integrations block', () => pm.expect(pm.response.json().data).to.have.property('integrations'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "ABAC Role Checks",
       "description": "Deliberately placed last: each request here logs in as a specific role right before using it, so it can't shadow {{token}} for the CRUD flow above. Ends by logging back in as admin, in case anything runs after this folder.",
       "item": [
@@ -324,6 +347,16 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "url": "{{baseUrl}}/api/v1/posts",
             "body": { "mode": "raw", "raw": "{\n  \"userId\": 1,\n  \"title\": \"should be denied\",\n  \"body\": \"viewer cannot write\"\n}" }
+          },
+          "event": [
+            { "listen": "test", "script": { "exec": ["pm.test('status 403', () => pm.response.to.have.status(403));"] } }
+          ]
+        },
+        {
+          "name": "Viewer cannot access admin status (expect 403)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin/status"
           },
           "event": [
             { "listen": "test", "script": { "exec": ["pm.test('status 403', () => pm.response.to.have.status(403));"] } }
