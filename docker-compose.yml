@@ -1,3 +1,38 @@
+# Common environment for every app service. Kept together so the shared
+# broker/db/security settings don't drift between services as they're added.
+x-app-env: &app-env
+  ENVIRONMENT: production
+  DB_TYPE: postgres
+  DB_HOST: postgres
+  DB_PORT: 5432
+  DB_USER: postgres
+  DB_PASSWORD: postgres
+  DB_NAME: postanalyzer
+  DB_SSL_MODE: disable
+  DB_MAX_CONNS: 25
+  DB_MIN_CONNS: 5
+  REDIS_ENABLED: "true"
+  REDIS_ADDR: redis:6379
+  KAFKA_ENABLED: "true"
+  KAFKA_BROKERS: kafka:9092
+  RABBITMQ_ENABLED: "true"
+  RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+  ROCKETMQ_ENABLED: "true"
+  ROCKETMQ_NAMESRV_ADDRS: rocketmq-namesrv:9876
+  MINIO_ENABLED: "true"
+  MINIO_ENDPOINT: minio:9000
+  MINIO_ACCESS_KEY: minioadmin
+  MINIO_SECRET_KEY: minioadmin
+  JWT_SECRET: change-me-in-production
+  ADMIN_USERNAME: admin
+  ADMIN_PASSWORD: admin123
+  LOG_LEVEL: info
+  LOG_FORMAT: json
+  RATE_LIMIT_REQUESTS: 100
+  RATE_LIMIT_WINDOW: 1m
+  MAX_BODY_SIZE: 1048576
+  ALLOWED_ORIGINS: "*"
+
 services:
   # PostgreSQL database
   postgres:
@@ -8,7 +43,10 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5432:5432"
+      # Host port 5433, not 5432: many dev machines already run a local
+      # Postgres on 5432 (this repo assumes that's common — see README).
+      # Internally, other containers still reach this one at postgres:5432.
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -104,6 +142,29 @@ services:
     restart: unless-stopped
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/10911'"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  # One-shot: pre-creates the post-notifications topic. RocketMQ only
+  # auto-creates a topic on first publish, but notification-consumer needs
+  # it to exist before it can subscribe — without this, the consumer would
+  # crash-loop until postsvc happens to publish the first message.
+  rocketmq-init:
+    image: apache/rocketmq:5.3.1
+    container_name: post-analyzer-rocketmq-init
+    entrypoint: ["sh", "-c"]
+    command:
+      - "sh mqadmin updateTopic -n rocketmq-namesrv:9876 -t post-notifications -c DefaultCluster"
+    depends_on:
+      rocketmq-broker:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - app-network
 
   # MinIO — local, self-hosted, S3-API-compatible object storage for
   # persisted post exports. Console UI on :9001 (minioadmin/minioadmin).
@@ -128,54 +189,83 @@ services:
     networks:
       - app-network
 
-  # Post Analyzer application
-  # NOTE: still builds the pre-split single binary via the root Dockerfile.
-  # This is superseded by the dedicated gateway/postsvc/authsvc services
-  # (with nginx, message brokers, and object storage) added in a later
-  # commit — kept here until that full compose file lands.
-  app:
+  # postsvc — Kitex RPC: post CRUD, analysis, Postgres/Redis, Kafka +
+  # RocketMQ producers.
+  postsvc:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: post-analyzer-app
+      args:
+        SERVICE: postsvc
+    container_name: post-analyzer-postsvc
     environment:
-      # Server configuration
+      <<: *app-env
+      POSTSVC_ADDR: 0.0.0.0:9001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9001"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # authsvc — Kitex RPC: JWT issuance + ABAC policy decisions.
+  authsvc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: authsvc
+    container_name: post-analyzer-authsvc
+    environment:
+      <<: *app-env
+      AUTHSVC_ADDR: 0.0.0.0:9002
+    restart: unless-stopped
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9002"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # gateway — Hertz HTTP edge: REST API, ABAC enforcement, web UI. No
+  # database connection of its own; talks to postsvc/authsvc over RPC.
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: gateway
+    # No container_name / host port here on purpose: both are
+    # incompatible with `docker compose up --scale gateway=N`. The
+    # gateway is reached through nginx (port 80), which the
+    # request/response cycle needs; it is not meant to be hit directly.
+    environment:
+      <<: *app-env
       PORT: 8080
       HOST: 0.0.0.0
-      ENVIRONMENT: production
       READ_TIMEOUT: 15s
       WRITE_TIMEOUT: 15s
       SHUTDOWN_TIMEOUT: 30s
-
-      # Database configuration
-      DB_TYPE: postgres
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: postanalyzer
-      DB_SSL_MODE: disable
-      DB_MAX_CONNS: 25
-      DB_MIN_CONNS: 5
-
-      # Security configuration
-      RATE_LIMIT_REQUESTS: 100
-      RATE_LIMIT_WINDOW: 1m
-      MAX_BODY_SIZE: 1048576
-      ALLOWED_ORIGINS: "*"
-
-      # Logging configuration
-      LOG_LEVEL: info
-      LOG_FORMAT: json
-      LOG_OUTPUT: stdout
-
-      # External API configuration
+      POSTSVC_ADDR: postsvc:9001
+      AUTHSVC_ADDR: authsvc:9002
       JSONPLACEHOLDER_URL: https://jsonplaceholder.typicode.com/posts
       HTTP_TIMEOUT: 30s
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     depends_on:
-      postgres:
+      postsvc:
+        condition: service_healthy
+      authsvc:
         condition: service_healthy
     restart: unless-stopped
     networks:
@@ -186,6 +276,83 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  # analytics-consumer — Kafka post.events -> Prometheus counters.
+  analytics-consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: analytics-consumer
+    container_name: post-analyzer-analytics-consumer
+    environment:
+      <<: *app-env
+      METRICS_PORT: "9101"
+    depends_on:
+      - kafka
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # reanalysis-worker — RabbitMQ reanalysis.jobs -> postsvc.AnalyzePosts.
+  reanalysis-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: reanalysis-worker
+    container_name: post-analyzer-reanalysis-worker
+    environment:
+      <<: *app-env
+      METRICS_PORT: "9102"
+      POSTSVC_ADDR: postsvc:9001
+    depends_on:
+      postsvc:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # notification-consumer — RocketMQ delayed post-notifications delivery.
+  # NOTE: on a cold `docker compose up`, this may crash-loop a couple of
+  # times right after rocketmq-init creates the topic on the broker — the
+  # nameserver only learns about it on the broker's next heartbeat
+  # (~seconds). `restart: unless-stopped` recovers it automatically; no
+  # action needed.
+  notification-consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: notification-consumer
+    container_name: post-analyzer-notification-consumer
+    environment:
+      <<: *app-env
+      METRICS_PORT: "9103"
+    depends_on:
+      rocketmq-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # nginx — reverse proxy / load balancer in front of the gateway. Scale
+  # gateway horizontally with `--scale gateway=N`; nginx's upstream picks
+  # up new replicas via Docker's embedded DNS.
+  nginx:
+    image: nginx:alpine
+    container_name: post-analyzer-nginx
+    volumes:
+      - ./deployments/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - gateway
+    restart: unless-stopped
+    networks:
+      - app-network
 
   # Prometheus for metrics
   prometheus:
@@ -202,7 +369,7 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     depends_on:
-      - app
+      - gateway
     restart: unless-stopped
     networks:
       - app-network

@@ -10,6 +10,7 @@ package rocketmq
 import (
 	"context"
 	"fmt"
+	"net"
 
 	rmq "github.com/apache/rocketmq-client-go/v2"
 	"github.com/apache/rocketmq-client-go/v2/consumer"
@@ -28,13 +29,43 @@ const NotificationsTopic = "post-notifications"
 // 10m 20m 30m 1h 2h — level N maps to the Nth entry in that list.
 const DelayLevelTenSeconds = 3
 
+// resolveAddrs turns "host:port" entries into "ip:port". The official
+// Go client's passthrough resolver validates addresses against a literal
+// IP regex and rejects hostnames outright (ErrIllegalIP) — it never does
+// its own DNS lookup — so this is required for it to work against a
+// Docker Compose service name (e.g. "rocketmq-namesrv:9876") rather than
+// a hardcoded IP.
+func resolveAddrs(addrs []string) ([]string, error) {
+	out := make([]string, 0, len(addrs))
+	for _, addr := range addrs {
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid rocketmq address %q: %w", addr, err)
+		}
+		if net.ParseIP(host) != nil {
+			out = append(out, addr)
+			continue
+		}
+		ips, err := net.LookupHost(host)
+		if err != nil {
+			return nil, fmt.Errorf("resolve rocketmq host %q: %w", host, err)
+		}
+		out = append(out, net.JoinHostPort(ips[0], port))
+	}
+	return out, nil
+}
+
 type Producer struct {
 	p rmq.Producer
 }
 
 func NewProducer(nameServers []string) (*Producer, error) {
+	resolved, err := resolveAddrs(nameServers)
+	if err != nil {
+		return nil, fmt.Errorf("resolve rocketmq name servers: %w", err)
+	}
 	p, err := rmq.NewProducer(
-		producer.WithNsResolver(primitive.NewPassthroughResolver(nameServers)),
+		producer.WithNsResolver(primitive.NewPassthroughResolver(resolved)),
 		producer.WithRetry(2),
 	)
 	if err != nil {
@@ -70,9 +101,13 @@ type PushConsumer struct {
 }
 
 func NewPushConsumer(nameServers []string, group string) (*PushConsumer, error) {
+	resolved, err := resolveAddrs(nameServers)
+	if err != nil {
+		return nil, fmt.Errorf("resolve rocketmq name servers: %w", err)
+	}
 	c, err := rmq.NewPushConsumer(
 		consumer.WithGroupName(group),
-		consumer.WithNsResolver(primitive.NewPassthroughResolver(nameServers)),
+		consumer.WithNsResolver(primitive.NewPassthroughResolver(resolved)),
 		consumer.WithConsumerModel(consumer.Clustering),
 	)
 	if err != nil {

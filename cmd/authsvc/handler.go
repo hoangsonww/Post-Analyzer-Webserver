@@ -28,7 +28,7 @@ func NewAuthServiceImpl(users *abac.UserStore, secret string, ttl time.Duration)
 	}
 }
 
-func ok() *basegen.BaseResp  { return &basegen.BaseResp{StatusCode: 0, StatusMessage: "OK"} }
+func ok() *basegen.BaseResp { return &basegen.BaseResp{StatusCode: 0, StatusMessage: "OK"} }
 func fail(msg string) *basegen.BaseResp {
 	return &basegen.BaseResp{StatusCode: 1, StatusMessage: msg}
 }
