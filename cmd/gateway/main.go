@@ -8,7 +8,6 @@ import (
 
 	"Post_Analyzer_Webserver/config"
 	"Post_Analyzer_Webserver/internal/api"
-	"Post_Analyzer_Webserver/internal/cache"
 	"Post_Analyzer_Webserver/internal/handlers"
 	"Post_Analyzer_Webserver/internal/logger"
 	"Post_Analyzer_Webserver/internal/metrics"
@@ -59,10 +58,6 @@ func main() {
 		logger.Error("failed to create authsvc RPC client", "error", err)
 		os.Exit(1)
 	}
-
-	// Initialize cache
-	_ = cache.NewCache(cfg) // Cache initialized for future use
-	logger.Info("cache initialized", "type", "memory")
 
 	// Initialize API handlers. The posts routes require a valid JWT +
 	// ABAC allow decision from authsvc; /api/v1/auth/login (registered

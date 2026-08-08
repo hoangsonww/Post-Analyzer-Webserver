@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"Post_Analyzer_Webserver/internal/cache"
 	"Post_Analyzer_Webserver/internal/errors"
 	"Post_Analyzer_Webserver/internal/export"
 	"Post_Analyzer_Webserver/internal/logger"
@@ -16,15 +17,39 @@ import (
 	"Post_Analyzer_Webserver/internal/storage"
 )
 
-// PostService handles business logic for posts
+const (
+	cacheKeyAllPosts = "posts:all"
+	cacheTTLAllPosts = 10 * time.Second
+	cacheTTLPost     = 30 * time.Second
+)
+
+func cacheKeyPost(id int) string { return fmt.Sprintf("post:%d", id) }
+
+// PostService handles business logic for posts. cache is optional (nil is
+// safe) — passing nil disables caching entirely, which is convenient for
+// tests.
 type PostService struct {
 	storage storage.Storage
+	cache   cache.Cache
 }
 
 // NewPostService creates a new post service
-func NewPostService(storage storage.Storage) *PostService {
+func NewPostService(storage storage.Storage, c cache.Cache) *PostService {
 	return &PostService{
 		storage: storage,
+		cache:   c,
+	}
+}
+
+// invalidate drops cached entries after a write so readers never observe
+// stale data past the mutation that caused it.
+func (s *PostService) invalidate(ctx context.Context, id int) {
+	if s.cache == nil {
+		return
+	}
+	_ = s.cache.Delete(ctx, cacheKeyAllPosts)
+	if id != 0 {
+		_ = s.cache.Delete(ctx, cacheKeyPost(id))
 	}
 }
 
@@ -35,23 +60,37 @@ func (s *PostService) GetAll(ctx context.Context, filter *models.PostFilter, pag
 		metrics.RecordDBOperation("get_all_posts", "success", time.Since(start))
 	}()
 
-	// Get all posts from storage
-	storagePosts, err := s.storage.GetAll(ctx)
-	if err != nil {
-		metrics.RecordDBOperation("get_all_posts", "error", time.Since(start))
-		return nil, nil, errors.Wrap(err, "failed to retrieve posts")
+	// Serve the unfiltered post set from cache when available; filtering,
+	// sorting, and pagination below always run fresh over that set.
+	var posts []models.Post
+	cacheHit := false
+	if s.cache != nil {
+		if err := s.cache.Get(ctx, cacheKeyAllPosts, &posts); err == nil {
+			cacheHit = true
+		}
 	}
 
-	// Convert storage posts to models
-	posts := make([]models.Post, len(storagePosts))
-	for i, sp := range storagePosts {
-		posts[i] = models.Post{
-			ID:        sp.Id,
-			UserID:    sp.UserId,
-			Title:     sp.Title,
-			Body:      sp.Body,
-			CreatedAt: sp.CreatedAt,
-			UpdatedAt: sp.UpdatedAt,
+	if !cacheHit {
+		storagePosts, err := s.storage.GetAll(ctx)
+		if err != nil {
+			metrics.RecordDBOperation("get_all_posts", "error", time.Since(start))
+			return nil, nil, errors.Wrap(err, "failed to retrieve posts")
+		}
+
+		posts = make([]models.Post, len(storagePosts))
+		for i, sp := range storagePosts {
+			posts[i] = models.Post{
+				ID:        sp.Id,
+				UserID:    sp.UserId,
+				Title:     sp.Title,
+				Body:      sp.Body,
+				CreatedAt: sp.CreatedAt,
+				UpdatedAt: sp.UpdatedAt,
+			}
+		}
+
+		if s.cache != nil {
+			_ = s.cache.Set(ctx, cacheKeyAllPosts, posts, cacheTTLAllPosts)
 		}
 	}
 
@@ -88,6 +127,13 @@ func (s *PostService) GetByID(ctx context.Context, id int) (*models.Post, error)
 		metrics.RecordDBOperation("get_post_by_id", "success", time.Since(start))
 	}()
 
+	if s.cache != nil {
+		var cached models.Post
+		if err := s.cache.Get(ctx, cacheKeyPost(id), &cached); err == nil {
+			return &cached, nil
+		}
+	}
+
 	storagePost, err := s.storage.GetByID(ctx, id)
 	if err != nil {
 		if err == storage.ErrNotFound {
@@ -104,6 +150,10 @@ func (s *PostService) GetByID(ctx context.Context, id int) (*models.Post, error)
 		Body:      storagePost.Body,
 		CreatedAt: storagePost.CreatedAt,
 		UpdatedAt: storagePost.UpdatedAt,
+	}
+
+	if s.cache != nil {
+		_ = s.cache.Set(ctx, cacheKeyPost(id), post, cacheTTLPost)
 	}
 
 	return post, nil
@@ -134,6 +184,7 @@ func (s *PostService) Create(ctx context.Context, req *models.CreatePostRequest)
 	}
 
 	logger.InfoContext(ctx, "post created", "id", storagePost.Id)
+	s.invalidate(ctx, 0)
 
 	post := &models.Post{
 		ID:        storagePost.Id,
@@ -184,6 +235,7 @@ func (s *PostService) Update(ctx context.Context, id int, req *models.UpdatePost
 		metrics.RecordDBOperation("update_post", "error", time.Since(start))
 		return nil, errors.Wrap(err, "failed to update post")
 	}
+	s.invalidate(ctx, id)
 
 	post := &models.Post{
 		ID:        existing.Id,
@@ -213,6 +265,7 @@ func (s *PostService) Delete(ctx context.Context, id int) error {
 	}
 
 	logger.InfoContext(ctx, "post deleted", "id", id)
+	s.invalidate(ctx, id)
 	return nil
 }
 

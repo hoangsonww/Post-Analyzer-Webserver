@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL database
   postgres:
@@ -21,7 +19,27 @@ services:
     networks:
       - app-network
 
+  # Redis cache
+  redis:
+    image: redis:7-alpine
+    container_name: post-analyzer-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
   # Post Analyzer application
+  # NOTE: still builds the pre-split single binary via the root Dockerfile.
+  # This is superseded by the dedicated gateway/postsvc/authsvc services
+  # (with nginx, message brokers, and object storage) added in a later
+  # commit — kept here until that full compose file lands.
   app:
     build:
       context: .
@@ -115,6 +133,7 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
   prometheus_data:
   grafana_data:
 

@@ -10,6 +10,7 @@ import (
 
 	"Post_Analyzer_Webserver/config"
 	"Post_Analyzer_Webserver/internal/bootstrap"
+	"Post_Analyzer_Webserver/internal/cache"
 	"Post_Analyzer_Webserver/internal/logger"
 	"Post_Analyzer_Webserver/internal/service"
 	post "Post_Analyzer_Webserver/kitex_gen/post/postservice"
@@ -37,7 +38,8 @@ func main() {
 	}
 	defer store.Close()
 
-	svc := service.NewPostService(store)
+	postCache := cache.NewCache(cfg)
+	svc := service.NewPostService(store, postCache)
 	handler := NewPostServiceImpl(svc)
 
 	addr := utils.NewNetAddr("tcp", cfg.RPC.PostServiceAddr)
