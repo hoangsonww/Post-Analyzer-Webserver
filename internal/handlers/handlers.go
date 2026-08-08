@@ -63,7 +63,7 @@ type HomePageVars struct {
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, `{"status":"healthy","timestamp":"%s"}`, time.Now().Format(time.RFC3339))
+	_, _ = fmt.Fprintf(w, `{"status":"healthy","timestamp":"%s"}`, time.Now().Format(time.RFC3339))
 }
 
 // Readiness check endpoint — verifies postsvc RPC is reachable
@@ -75,13 +75,13 @@ func (h *Handler) Readiness(w http.ResponseWriter, r *http.Request) {
 		logger.ErrorContext(r.Context(), "readiness check failed", "error", err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusServiceUnavailable)
-		fmt.Fprintf(w, `{"status":"not ready","error":"%s"}`, err.Error())
+		_, _ = fmt.Fprintf(w, `{"status":"not ready","error":"%s"}`, err.Error())
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, `{"status":"ready","timestamp":"%s"}`, time.Now().Format(time.RFC3339))
+	_, _ = fmt.Fprintf(w, `{"status":"ready","timestamp":"%s"}`, time.Now().Format(time.RFC3339))
 }
 
 // Home serves the home page
@@ -195,7 +195,7 @@ func (h *Handler) fetchPostsFromAPI(ctx context.Context) ([]models.Post, error) 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)

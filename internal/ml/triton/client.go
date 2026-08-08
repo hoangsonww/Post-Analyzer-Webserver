@@ -100,7 +100,7 @@ func (c *Client) ClassifySentiment(ctx context.Context, text string) (*Sentiment
 	if err != nil {
 		return nil, fmt.Errorf("triton request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("triton returned status %d", resp.StatusCode)
@@ -153,7 +153,7 @@ func (c *Client) Ready(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("model not ready: status %d", resp.StatusCode)
 	}

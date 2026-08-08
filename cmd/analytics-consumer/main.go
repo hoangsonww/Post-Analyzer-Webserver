@@ -45,7 +45,7 @@ func main() {
 	metrics.Serve("analytics-consumer", metricsPort)
 
 	consumer := kafka.NewConsumer(cfg.Messaging.KafkaBrokers, kafka.PostEventsTopic, "analytics-consumer")
-	defer consumer.Close()
+	defer func() { _ = consumer.Close() }()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

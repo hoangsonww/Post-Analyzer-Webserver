@@ -46,7 +46,7 @@ func main() {
 		logger.Error("failed to initialize storage", "error", err)
 		os.Exit(1)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	postCache := cache.NewCache(cfg)
 	svc := service.NewPostService(store, postCache)
@@ -54,7 +54,7 @@ func main() {
 	events := &EventPublisher{}
 	if cfg.Messaging.KafkaEnabled {
 		events.kafka = kafka.NewProducer(cfg.Messaging.KafkaBrokers, kafka.PostEventsTopic)
-		defer events.kafka.Close()
+		defer func() { _ = events.kafka.Close() }()
 		logger.Info("kafka producer enabled", "brokers", cfg.Messaging.KafkaBrokers, "topic", kafka.PostEventsTopic)
 	}
 	if cfg.Messaging.RocketMQEnabled {
@@ -64,7 +64,7 @@ func main() {
 			os.Exit(1)
 		}
 		events.rocketmq = rmqProducer
-		defer events.rocketmq.Close()
+		defer func() { _ = events.rocketmq.Close() }()
 		logger.Info("rocketmq producer enabled", "name_servers", cfg.Messaging.RocketMQNsAddrs, "topic", rocketmq.NotificationsTopic)
 	}
 	if cfg.ML.Enabled {

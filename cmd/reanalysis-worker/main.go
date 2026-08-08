@@ -57,7 +57,7 @@ func main() {
 		logger.Error("failed to connect to rabbitmq", "error", err)
 		os.Exit(1)
 	}
-	defer mq.Close()
+	defer func() { _ = mq.Close() }()
 	if err := mq.DeclareQueue(rabbitmq.ReanalysisQueue); err != nil {
 		logger.Error("failed to declare rabbitmq queue", "error", err)
 		os.Exit(1)

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"sync"
@@ -118,7 +117,7 @@ func fetchPosts() ([]Post, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var posts []Post
 	if err := json.NewDecoder(resp.Body).Decode(&posts); err != nil {
@@ -132,7 +131,7 @@ func writePostsToFile(posts []Post) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	encoder := json.NewEncoder(file)
 	if err := encoder.Encode(posts); err != nil {
@@ -142,7 +141,7 @@ func writePostsToFile(posts []Post) error {
 }
 
 func readPostsFromFile() ([]Post, error) {
-	data, err := ioutil.ReadFile("posts.json")
+	data, err := os.ReadFile("posts.json")
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +154,7 @@ func readPostsFromFile() ([]Post, error) {
 }
 
 func countCharacters(filePath string) (map[rune]int, error) {
-	data, err := ioutil.ReadFile(filePath)
+	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}

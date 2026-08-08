@@ -89,7 +89,7 @@ func runServe() {
 			logger.Error("failed to declare rabbitmq queue", "error", err)
 			os.Exit(1)
 		}
-		defer rmqClient.Close()
+		defer func() { _ = rmqClient.Close() }()
 		logger.Info("rabbitmq reanalysis queue enabled", "url", cfg.Messaging.RabbitMQURL, "queue", rabbitmq.ReanalysisQueue)
 	}
 
@@ -135,7 +135,7 @@ func runServe() {
 		logger.Error("failed to initialize web handlers", "error", err)
 		os.Exit(1)
 	}
-	defer webHandlers.Close()
+	defer func() { _ = webHandlers.Close() }()
 
 	// Setup HTTP router
 	mux := http.NewServeMux()
@@ -145,7 +145,7 @@ func runServe() {
 		uptime := time.Since(startTime)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, `{"status":"healthy","version":"%s","uptime":"%s","timestamp":"%s"}`,
+		_, _ = fmt.Fprintf(w, `{"status":"healthy","version":"%s","uptime":"%s","timestamp":"%s"}`,
 			version, uptime, time.Now().Format(time.RFC3339))
 	})
 	mux.HandleFunc("/readiness", webHandlers.Readiness)

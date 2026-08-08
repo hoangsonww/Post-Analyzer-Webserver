@@ -69,7 +69,7 @@ func (s *Store) Get(ctx context.Context, key string) (io.ReadCloser, error) {
 	// GetObject doesn't itself error on a missing key — the error only
 	// surfaces on first read/stat, so confirm existence eagerly here.
 	if _, err := obj.Stat(); err != nil {
-		obj.Close()
+		_ = obj.Close()
 		return nil, fmt.Errorf("get object %s: %w", key, err)
 	}
 	return obj, nil

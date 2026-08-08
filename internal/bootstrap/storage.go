@@ -35,7 +35,7 @@ func InitStorage(cfg *config.Config) (storage.Storage, error) {
 		if err != nil {
 			return nil, fmt.Errorf("open database for migrations: %w", err)
 		}
-		defer db.Close()
+		defer func() { _ = db.Close() }()
 
 		logger.Info("running database migrations...")
 		migrator := migrations.NewMigrator(db)

@@ -16,7 +16,7 @@ func TestFileStorage_CreateAndGet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create file storage: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
@@ -58,7 +58,7 @@ func TestFileStorage_GetAll(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create file storage: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
@@ -93,7 +93,7 @@ func TestFileStorage_Update(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create file storage: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
@@ -136,7 +136,7 @@ func TestFileStorage_Delete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create file storage: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
@@ -170,7 +170,7 @@ func TestFileStorage_Validation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create file storage: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
@@ -205,7 +205,7 @@ func TestFileStorage_Count(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create file storage: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
@@ -246,7 +246,7 @@ func TestFileStorage_BatchCreate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create file storage: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
@@ -293,7 +293,7 @@ func TestFileStorage_BatchCreate_ZeroIDsAndPreservesExisting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create file storage: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
@@ -338,7 +338,7 @@ func TestFileStorage_ConcurrentAccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create file storage: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
@@ -377,7 +377,7 @@ func TestFileStorage_FileNotExists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create file storage: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	// Verify file was created
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {

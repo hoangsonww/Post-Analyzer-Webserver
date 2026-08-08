@@ -83,7 +83,7 @@ func (ps *PostgresStorage) GetAll(ctx context.Context) ([]Post, error) {
 		logger.ErrorContext(ctx, "failed to query posts", "error", err)
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var posts []Post
 	for rows.Next() {
@@ -262,7 +262,7 @@ func (ps *PostgresStorage) BatchCreate(ctx context.Context, posts []Post) error 
 		metrics.RecordDBOperation("batch_create", "error", time.Since(start))
 		return err
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }()
 
 	now := time.Now()
 	for i := range posts {

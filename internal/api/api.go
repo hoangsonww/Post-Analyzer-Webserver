@@ -447,7 +447,7 @@ func (a *API) GetExport(w http.ResponseWriter, r *http.Request) {
 		a.respondError(w, r, errors.NewNotFound("Export"))
 		return
 	}
-	defer obj.Close()
+	defer func() { _ = obj.Close() }()
 
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", "attachment; filename="+key)
@@ -641,7 +641,7 @@ func (a *API) respondError(w http.ResponseWriter, r *http.Request, err error) {
 		},
 	}
 
-	if appErr.Fields != nil && len(appErr.Fields) > 0 {
+	if len(appErr.Fields) > 0 {
 		response["error"].(map[string]interface{})["fields"] = appErr.Fields
 	}
 

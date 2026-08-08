@@ -29,7 +29,7 @@ func Connect(url string) (*Client, error) {
 	}
 	ch, err := conn.Channel()
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("open rabbitmq channel: %w", err)
 	}
 	return &Client{conn: conn, ch: ch}, nil
@@ -81,6 +81,6 @@ func (c *Client) Consume(ctx context.Context, queue, consumerTag string, handler
 }
 
 func (c *Client) Close() error {
-	c.ch.Close()
+	_ = c.ch.Close()
 	return c.conn.Close()
 }
