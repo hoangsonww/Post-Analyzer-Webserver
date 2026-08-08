@@ -19,6 +19,14 @@ type Config struct {
 	Redis       RedisConfig
 	Messaging   MessagingConfig
 	ObjectStore ObjectStoreConfig
+	ML          MLConfig
+}
+
+// MLConfig contains connection info for the Nvidia Triton Inference
+// Server sentiment-classification model.
+type MLConfig struct {
+	TritonURL string
+	Enabled   bool
 }
 
 // ObjectStoreConfig contains connection info for the local MinIO
@@ -186,6 +194,10 @@ func Load() (*Config, error) {
 			SecretKey: getEnv("MINIO_SECRET_KEY", "minioadmin"),
 			UseSSL:    getEnv("MINIO_USE_SSL", "false") == "true",
 			Enabled:   getEnv("MINIO_ENABLED", "false") == "true",
+		},
+		ML: MLConfig{
+			TritonURL: getEnv("TRITON_URL", "http://127.0.0.1:8000"),
+			Enabled:   getEnv("TRITON_ENABLED", "false") == "true",
 		},
 	}
 

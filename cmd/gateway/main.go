@@ -14,6 +14,7 @@ import (
 	"Post_Analyzer_Webserver/internal/messaging/rabbitmq"
 	"Post_Analyzer_Webserver/internal/metrics"
 	"Post_Analyzer_Webserver/internal/middleware"
+	"Post_Analyzer_Webserver/internal/ml/triton"
 	"Post_Analyzer_Webserver/internal/objectstore"
 	"Post_Analyzer_Webserver/internal/rpcclient"
 
@@ -93,11 +94,19 @@ func main() {
 		logger.Info("minio object store enabled", "endpoint", cfg.ObjectStore.Endpoint, "bucket", objectstore.ExportsBucket)
 	}
 
+	// Optional: Triton sentiment classification (POST /api/v1/ml/sentiment).
+	// nil when disabled.
+	var tritonClient *triton.Client
+	if cfg.ML.Enabled {
+		tritonClient = triton.NewClient(cfg.ML.TritonURL)
+		logger.Info("triton sentiment classification enabled", "url", cfg.ML.TritonURL, "model", triton.ModelName)
+	}
+
 	// Initialize API handlers. The posts routes require a valid JWT +
 	// ABAC allow decision from authsvc; /api/v1/auth/login (registered
 	// separately below) is the one unauthenticated endpoint that issues
 	// that JWT in the first place.
-	apiHandler := api.NewAPI(postClient, authClient, rmqClient, objectStore)
+	apiHandler := api.NewAPI(postClient, authClient, rmqClient, objectStore, tritonClient)
 	apiRouter := api.NewRouter(apiHandler)
 	protectedAPI := middleware.ABAC(authClient, "post", middleware.ActionByMethod)(apiRouter)
 	logger.Info("API handlers initialized")

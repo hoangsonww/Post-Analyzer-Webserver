@@ -15,6 +15,7 @@ import (
 	"Post_Analyzer_Webserver/internal/messaging/kafka"
 	"Post_Analyzer_Webserver/internal/messaging/rocketmq"
 	"Post_Analyzer_Webserver/internal/metrics"
+	"Post_Analyzer_Webserver/internal/ml/triton"
 	"Post_Analyzer_Webserver/internal/service"
 	post "Post_Analyzer_Webserver/kitex_gen/post/postservice"
 
@@ -65,6 +66,10 @@ func main() {
 		events.rocketmq = rmqProducer
 		defer events.rocketmq.Close()
 		logger.Info("rocketmq producer enabled", "name_servers", cfg.Messaging.RocketMQNsAddrs, "topic", rocketmq.NotificationsTopic)
+	}
+	if cfg.ML.Enabled {
+		events.triton = triton.NewClient(cfg.ML.TritonURL)
+		logger.Info("triton sentiment enrichment enabled", "url", cfg.ML.TritonURL, "model", triton.ModelName)
 	}
 
 	handler := NewPostServiceImpl(svc, events)

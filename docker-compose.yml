@@ -23,6 +23,8 @@ x-app-env: &app-env
   MINIO_ENDPOINT: minio:9000
   MINIO_ACCESS_KEY: minioadmin
   MINIO_SECRET_KEY: minioadmin
+  TRITON_ENABLED: "true"
+  TRITON_URL: http://triton:8000
   JWT_SECRET: change-me-in-production
   ADMIN_USERNAME: admin
   ADMIN_PASSWORD: admin123
@@ -372,6 +374,30 @@ services:
       - "80:80"
     depends_on:
       - gateway
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # Nvidia Triton Inference Server (CPU mode) — serves post_sentiment, a
+  # small TF-IDF + logistic-regression classifier exported to ONNX (see
+  # deployments/triton/train_sentiment_model.py). No GPU required; runs
+  # on the onnxruntime CPU execution provider.
+  triton:
+    image: nvcr.io/nvidia/tritonserver:24.09-py3
+    container_name: post-analyzer-triton
+    command: ["tritonserver", "--model-repository=/models", "--model-control-mode=explicit", "--load-model=post_sentiment"]
+    volumes:
+      - ./deployments/triton/model_repository:/models:ro
+    ports:
+      - "8000:8000" # HTTP inference API
+      - "8001:8001" # gRPC inference API
+      - "8002:8002" # metrics
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/v2/health/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     restart: unless-stopped
     networks:
       - app-network

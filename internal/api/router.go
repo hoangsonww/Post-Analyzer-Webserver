@@ -51,6 +51,16 @@ func (router *Router) handleV1(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ML endpoints (Triton-backed)
+	if path == "/api/v1/ml/sentiment" {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		router.api.ClassifySentiment(w, r)
+		return
+	}
+
 	// Export storage endpoints (MinIO-backed)
 	if strings.HasPrefix(path, "/api/v1/exports") {
 		if r.Method != http.MethodGet {

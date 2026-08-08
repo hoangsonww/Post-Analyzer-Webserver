@@ -15,6 +15,7 @@ import (
 	"Post_Analyzer_Webserver/internal/logger"
 	"Post_Analyzer_Webserver/internal/messaging/rabbitmq"
 	"Post_Analyzer_Webserver/internal/middleware"
+	"Post_Analyzer_Webserver/internal/ml/triton"
 	"Post_Analyzer_Webserver/internal/models"
 	"Post_Analyzer_Webserver/internal/objectstore"
 	"Post_Analyzer_Webserver/internal/rpcclient"
@@ -30,16 +31,18 @@ type API struct {
 	authService rpcclient.AuthClient
 	rabbitmq    *rabbitmq.Client   // optional: nil disables ReanalyzePosts
 	objects     *objectstore.Store // optional: nil disables export persistence/listing
+	triton      *triton.Client     // optional: nil disables ClassifySentiment
 }
 
-// NewAPI creates a new API handler. rmq/objects may be nil when the
-// corresponding broker/store isn't enabled; the affected endpoints then
-// return 503 instead of failing gateway startup.
-func NewAPI(postService rpcclient.PostClient, authService rpcclient.AuthClient, rmq *rabbitmq.Client, objects *objectstore.Store) *API {
+// NewAPI creates a new API handler. rmq/objects/tritonClient may be nil
+// when the corresponding broker/store/model isn't enabled; the affected
+// endpoints then return 503 instead of failing gateway startup.
+func NewAPI(postService rpcclient.PostClient, authService rpcclient.AuthClient, rmq *rabbitmq.Client, objects *objectstore.Store, tritonClient *triton.Client) *API {
 	return &API{
 		postService: postService,
 		authService: authService,
 		rabbitmq:    rmq,
+		triton:      tritonClient,
 		objects:     objects,
 	}
 }
@@ -446,6 +449,46 @@ func (a *API) GetExport(w http.ResponseWriter, r *http.Request) {
 	if _, err := io.Copy(w, obj); err != nil {
 		logger.ErrorContext(ctx, "failed to stream export", "key", key, "error", err)
 	}
+}
+
+// ClassifySentiment handles POST /api/v1/ml/sentiment: on-demand sentiment
+// classification of arbitrary text via the Triton-served post_sentiment
+// model. This is the same enrichment postsvc runs automatically on post
+// creation (when Triton + Kafka are both enabled), exposed directly here
+// so it can be tried without creating a post first.
+func (a *API) ClassifySentiment(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if a.triton == nil {
+		a.respondError(w, r, errors.ErrServiceUnavailable)
+		return
+	}
+
+	var req struct {
+		Text string `json:"text"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Text) == "" {
+		a.respondError(w, r, errors.NewValidationError("text is required"))
+		return
+	}
+
+	result, err := a.triton.ClassifySentiment(ctx, req.Text)
+	if err != nil {
+		logger.ErrorContext(ctx, "triton classification failed", "error", err)
+		a.respondError(w, r, errors.NewInternalError(err))
+		return
+	}
+
+	a.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"data": map[string]interface{}{
+			"label":         result.Label,
+			"probabilities": result.Probabilities,
+		},
+		"meta": &models.ResponseMeta{
+			RequestID: getRequestID(ctx),
+			Timestamp: time.Now(),
+		},
+	})
 }
 
 // AnalyzePosts handles GET /api/v1/posts/analytics
