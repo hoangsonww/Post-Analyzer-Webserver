@@ -33,6 +33,8 @@ It's still fundamentally about **post analysis** — every piece of infrastructu
 
 ## Architecture
 
+Diagrams (component graph, request lifecycle through ABAC/RPC, the three-broker event fan-out, deployment topology) are in [ARCHITECTURE.md](./ARCHITECTURE.md). Quick ASCII summary:
+
 ```
                               ┌─────────────┐
                               │   Browser   │
