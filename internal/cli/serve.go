@@ -165,6 +165,16 @@ func runServe() {
 	mux.HandleFunc("/fetch", webHandlers.FetchPosts)
 	mux.HandleFunc("/analyze", webHandlers.AnalyzePosts)
 	mux.HandleFunc("/add", webHandlers.AddPost)
+
+	// Small JSON endpoints backing the interactive parts of the built-in
+	// web UI (search/sort/pagination, edit, delete) — see the "Web JSON
+	// API" section of internal/handlers for why these are separate from
+	// the ABAC-gated /api/v1 surface above.
+	mux.HandleFunc("GET /web/posts", webHandlers.WebListPosts)
+	mux.HandleFunc("POST /web/posts", webHandlers.WebCreatePost)
+	mux.HandleFunc("GET /web/posts/{id}", webHandlers.WebGetPost)
+	mux.HandleFunc("PUT /web/posts/{id}", webHandlers.WebUpdatePost)
+	mux.HandleFunc("DELETE /web/posts/{id}", webHandlers.WebDeletePost)
 	mux.HandleFunc("/dashboard", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "assets/dashboard.html")
 	})

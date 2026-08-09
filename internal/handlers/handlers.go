@@ -8,11 +8,13 @@ import (
 	"html/template"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"Post_Analyzer_Webserver/config"
+	apperrors "Post_Analyzer_Webserver/internal/errors"
 	"Post_Analyzer_Webserver/internal/logger"
 	"Post_Analyzer_Webserver/internal/metrics"
 	"Post_Analyzer_Webserver/internal/models"
@@ -31,9 +33,28 @@ type Handler struct {
 // New creates a new Handler
 func New(posts rpcclient.PostClient, cfg *config.Config) (*Handler, error) {
 	funcMap := template.FuncMap{
-		"toJSON": func(v interface{}) string {
+		// toJSON returns template.JS rather than string: html/template
+		// contextually auto-escapes a plain string used inside a
+		// <script> block by wrapping it in quotes (turning it into a
+		// JS string literal, not the object/array literal we actually
+		// want). template.JS marks the content as already-safe raw JS
+		// so it's emitted unquoted.
+		"toJSON": func(v interface{}) template.JS {
 			data, _ := json.Marshal(v)
-			return string(data)
+			return template.JS(data)
+		},
+		"fmtDate": func(t time.Time) string {
+			if t.IsZero() {
+				return ""
+			}
+			return t.Format("Jan 2, 2006 3:04 PM")
+		},
+		"truncate": func(s string, n int) string {
+			r := []rune(s)
+			if len(r) <= n {
+				return s
+			}
+			return string(r[:n]) + "…"
 		},
 	}
 
@@ -178,6 +199,154 @@ func (h *Handler) AddPost(w http.ResponseWriter, r *http.Request) {
 	} else {
 		h.renderTemplate(w, HomePageVars{Title: "Add New Post"})
 	}
+}
+
+// --- Web JSON API ---------------------------------------------------
+//
+// The routes below back the interactive parts of the built-in web UI
+// (search, sort, pagination, edit, delete) with small JSON endpoints
+// under /web/, separate from the hardened, ABAC-gated /api/v1 surface
+// used by external clients. They're same-origin, same-trust-level as
+// the pre-existing /add form post — convenience endpoints for the
+// bundled UI, not a public API contract.
+
+// webPostInput is the JSON body accepted by WebCreatePost/WebUpdatePost.
+type webPostInput struct {
+	UserID int    `json:"userId"`
+	Title  string `json:"title"`
+	Body   string `json:"body"`
+}
+
+func (h *Handler) webJSON(w http.ResponseWriter, status int, v interface{}) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		logger.Error("web: failed to encode JSON response", "error", err)
+	}
+}
+
+// webErrorFrom maps an error to a JSON {"error": message} body using the
+// same *errors.AppError status-code convention internal/api uses, so a
+// "post not found" surfaces as 404 rather than a blanket 500.
+func (h *Handler) webErrorFrom(w http.ResponseWriter, err error) {
+	appErr, ok := err.(*apperrors.AppError)
+	if !ok {
+		appErr = apperrors.NewInternalError(err)
+	}
+	h.webJSON(w, appErr.StatusCode, map[string]string{"error": appErr.Message})
+}
+
+// WebListPosts serves the post grid as JSON. Search, sort, and
+// pagination are all pushed down to postsvc rather than done in the
+// browser, so the UI stays fast no matter how many posts exist.
+func (h *Handler) WebListPosts(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	page, _ := strconv.Atoi(q.Get("page"))
+	pageSize, _ := strconv.Atoi(q.Get("pageSize"))
+
+	filter := &models.PostFilter{
+		Search:    strings.TrimSpace(q.Get("search")),
+		SortBy:    q.Get("sortBy"),
+		SortOrder: q.Get("sortOrder"),
+	}
+	posts, meta, err := h.posts.GetAll(r.Context(), filter, &models.PaginationParams{Page: page, PageSize: pageSize})
+	if err != nil {
+		logger.ErrorContext(r.Context(), "web: failed to list posts", "error", err)
+		h.webErrorFrom(w, err)
+		return
+	}
+	if posts == nil {
+		posts = []models.Post{}
+	}
+	h.webJSON(w, http.StatusOK, map[string]interface{}{"posts": posts, "pagination": meta})
+}
+
+// WebGetPost returns a single post as JSON, used to prefill the edit modal.
+func (h *Handler) WebGetPost(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		h.webErrorFrom(w, apperrors.NewValidationError("invalid post id"))
+		return
+	}
+	post, err := h.posts.GetByID(r.Context(), id)
+	if err != nil {
+		h.webErrorFrom(w, err)
+		return
+	}
+	h.webJSON(w, http.StatusOK, post)
+}
+
+// WebCreatePost creates a post from a JSON body (the "New post" modal).
+func (h *Handler) WebCreatePost(w http.ResponseWriter, r *http.Request) {
+	var in webPostInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		h.webErrorFrom(w, apperrors.NewValidationError("invalid request body"))
+		return
+	}
+	title := h.sanitizeInput(in.Title)
+	body := h.sanitizeInput(in.Body)
+	if title == "" || body == "" {
+		h.webErrorFrom(w, apperrors.NewValidationError("title and body are required"))
+		return
+	}
+	userID := in.UserID
+	if userID == 0 {
+		userID = 1
+	}
+
+	created, err := h.posts.Create(r.Context(), &models.CreatePostRequest{UserID: userID, Title: title, Body: body})
+	if err != nil {
+		logger.ErrorContext(r.Context(), "web: failed to create post", "error", err)
+		h.webErrorFrom(w, err)
+		return
+	}
+	logger.InfoContext(r.Context(), "web: post created", "id", created.ID)
+	h.webJSON(w, http.StatusCreated, created)
+}
+
+// WebUpdatePost updates a post's title/body from a JSON body (edit modal).
+func (h *Handler) WebUpdatePost(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		h.webErrorFrom(w, apperrors.NewValidationError("invalid post id"))
+		return
+	}
+	var in webPostInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		h.webErrorFrom(w, apperrors.NewValidationError("invalid request body"))
+		return
+	}
+	title := h.sanitizeInput(in.Title)
+	body := h.sanitizeInput(in.Body)
+	if title == "" || body == "" {
+		h.webErrorFrom(w, apperrors.NewValidationError("title and body are required"))
+		return
+	}
+
+	updated, err := h.posts.Update(r.Context(), id, &models.UpdatePostRequest{Title: title, Body: body})
+	if err != nil {
+		logger.ErrorContext(r.Context(), "web: failed to update post", "error", err, "id", id)
+		h.webErrorFrom(w, err)
+		return
+	}
+	logger.InfoContext(r.Context(), "web: post updated", "id", id)
+	h.webJSON(w, http.StatusOK, updated)
+}
+
+// WebDeletePost deletes a post.
+func (h *Handler) WebDeletePost(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		h.webErrorFrom(w, apperrors.NewValidationError("invalid post id"))
+		return
+	}
+	if err := h.posts.Delete(r.Context(), id); err != nil {
+		logger.ErrorContext(r.Context(), "web: failed to delete post", "error", err, "id", id)
+		h.webErrorFrom(w, err)
+		return
+	}
+	logger.InfoContext(r.Context(), "web: post deleted", "id", id)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // fetchPostsFromAPI fetches posts from external API

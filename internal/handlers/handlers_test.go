@@ -20,15 +20,35 @@ type fakePostClient struct {
 	getAllErr     error
 	createErr     error
 	bulkCreateErr error
+
+	getByIDResult *models.Post
+	getByIDErr    error
+	updateResult  *models.Post
+	updateErr     error
+	deleteErr     error
+
+	// lastFilter/lastPagination capture the arguments GetAll was last
+	// called with, so tests can assert search/sort/pagination query
+	// params actually reach postsvc rather than being silently dropped.
+	lastFilter     *models.PostFilter
+	lastPagination *models.PaginationParams
 }
 
 func (f *fakePostClient) GetAll(ctx context.Context, filter *models.PostFilter, pagination *models.PaginationParams) ([]models.Post, *models.PaginationMeta, error) {
+	f.lastFilter = filter
+	f.lastPagination = pagination
 	if f.getAllErr != nil {
 		return nil, nil, f.getAllErr
 	}
 	return f.posts, &models.PaginationMeta{TotalItems: len(f.posts)}, nil
 }
 func (f *fakePostClient) GetByID(ctx context.Context, id int) (*models.Post, error) {
+	if f.getByIDErr != nil {
+		return nil, f.getByIDErr
+	}
+	if f.getByIDResult != nil {
+		return f.getByIDResult, nil
+	}
 	return nil, apperrors.NewNotFound("Post")
 }
 func (f *fakePostClient) Create(ctx context.Context, req *models.CreatePostRequest) (*models.Post, error) {
@@ -40,9 +60,15 @@ func (f *fakePostClient) Create(ctx context.Context, req *models.CreatePostReque
 	return &p, nil
 }
 func (f *fakePostClient) Update(ctx context.Context, id int, req *models.UpdatePostRequest) (*models.Post, error) {
+	if f.updateErr != nil {
+		return nil, f.updateErr
+	}
+	if f.updateResult != nil {
+		return f.updateResult, nil
+	}
 	return nil, apperrors.NewNotFound("Post")
 }
-func (f *fakePostClient) Delete(ctx context.Context, id int) error { return nil }
+func (f *fakePostClient) Delete(ctx context.Context, id int) error { return f.deleteErr }
 func (f *fakePostClient) BulkCreate(ctx context.Context, req *models.BulkCreateRequest) (*models.BulkCreateResponse, error) {
 	if f.bulkCreateErr != nil {
 		return nil, f.bulkCreateErr
