@@ -34,6 +34,7 @@ Everything below is the actual running app — captured at viewport size against
 | **Quick analysis (current page)** ![Quick analysis](assets/ui-quick-analysis.png) | **Full analysis (entire dataset, server-computed)** ![Full analysis](assets/ui-full-analysis.png) |
 | **Dashboard — sign in** ![Dashboard login](assets/ui-dashboard-login.png) | **Dashboard — analytics** ![Dashboard overview](assets/ui-dashboard-overview.png) |
 | **Dashboard — admin panel** (role-gated) ![Dashboard admin](assets/ui-dashboard-admin.png) | **No-JS fallback form** ![Add post legacy form](assets/ui-add-post-legacy.png) |
+| **CLI — colorized output** ![CLI](img/cli.png) | **REPL — colorized banner + session** ![REPL](img/repl.png) |
 
 ## Architecture
 
@@ -183,6 +184,12 @@ connected to http://localhost:8080
 Type "help" for commands, "exit" to quit.
 post-analyzer>
 ```
+
+Real captures (also in [Screenshots](#screenshots)):
+
+| | |
+|---|---|
+| **CLI** — login, list, create, sentiment, error handling ![CLI output](img/cli.png) | **REPL** — banner, login, list, sentiment, help ![REPL session](img/repl.png) |
 
 ### The web UI (`/`) has real CRUD now, not just a viewer
 
