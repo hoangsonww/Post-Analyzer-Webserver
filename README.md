@@ -392,6 +392,7 @@ Integration- and infrastructure-dependent code (`internal/messaging/*`, `interna
 
 ## Deployment
 
+- **Container images** — CI builds and pushes all six service images to GHCR on every push (`ghcr.io/hoangsonww/post-analyzer-{gateway,postsvc,authsvc,analytics-consumer,reanalysis-worker,notification-consumer}`, tagged by commit SHA + branch, `latest` on the default branch). Pull with `docker pull ghcr.io/hoangsonww/post-analyzer-gateway:latest`.
 - **Docker Compose** — `make docker-up` / `docker compose up -d`, the full local stack.
 - **Kubernetes** — `deployments/k8s/base` (Kustomize) with `overlays/{dev,staging,prod,local-kind}`. `make k8s-apply-dev` etc. Includes an Ingress, a `prod` overlay with PodDisruptionBudget + HorizontalPodAutoscaler, Argo Rollouts manifests for canary/blue-green (`deployments/k8s/rollout/`), and Istio mesh manifests (`deployments/k8s/mesh/`).
 - **Local kind cluster** — `make kind-create && make kind-load && make k8s-apply-local-kind`.
