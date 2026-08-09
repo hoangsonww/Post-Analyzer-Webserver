@@ -20,7 +20,8 @@ func newLoginCmd() *cobra.Command {
 			if err := SaveToken(token); err != nil {
 				return fmt.Errorf("login succeeded but failed to save token: %w", err)
 			}
-			fmt.Printf("Logged in as %s (role: %s). Token saved to ~/.post-analyzer/token\n", args[0], role)
+			fmt.Println(ok(fmt.Sprintf("Logged in as %s (role: %s)", bold(args[0]), yellow(role))))
+			fmt.Println(dim("Token saved to ~/.post-analyzer/token"))
 			return nil
 		},
 	}

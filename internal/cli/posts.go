@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -27,13 +30,48 @@ func newPostsCmd() *cobra.Command {
 	return cmd
 }
 
+// lastFieldRE finds the final tabwriter-padded column (2+ spaces, since
+// that's tabwriter's minimum padding, followed by the field's content
+// through end of line) so it can be colorized without disturbing the
+// padding tabwriter already computed.
+var lastFieldRE = regexp.MustCompile(`\s{2,}\S+$`)
+
 func printPostsTable(posts []Post) {
-	w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
+	// Format with plain text first. tabwriter sizes columns from each
+	// cell's byte length — coloring cells *before* handing them to it
+	// would count the invisible ANSI escape bytes toward that width and
+	// throw off alignment (confirmed by actually running this before
+	// this fix existed). Coloring substrings of the already-aligned
+	// plain output is safe: a terminal renders escape codes as
+	// zero-width, so it doesn't affect spacing.
+	var buf bytes.Buffer
+	w := tabwriter.NewWriter(&buf, 0, 2, 2, ' ', 0)
 	_, _ = fmt.Fprintln(w, "ID\tUSER\tTITLE\tCREATED")
 	for _, p := range posts {
 		_, _ = fmt.Fprintf(w, "%d\t%d\t%s\t%s\n", p.ID, p.UserID, truncate(p.Title, 50), p.CreatedAt)
 	}
 	_ = w.Flush()
+
+	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
+	for i, line := range lines {
+		if i == 0 {
+			fmt.Println(bold(line))
+			continue
+		}
+		fmt.Println(colorizePostsRow(line))
+	}
+}
+
+func colorizePostsRow(line string) string {
+	idEnd := strings.IndexByte(line, ' ')
+	if idEnd < 0 {
+		return line
+	}
+	line = cyan(line[:idEnd]) + line[idEnd:]
+	return lastFieldRE.ReplaceAllStringFunc(line, func(m string) string {
+		trimmed := strings.TrimLeft(m, " ")
+		return m[:len(m)-len(trimmed)] + dim(trimmed)
+	})
 }
 
 func truncate(s string, n int) string {
@@ -53,7 +91,7 @@ func newPostsListCmd() *cobra.Command {
 				return err
 			}
 			if len(posts) == 0 {
-				fmt.Println("No posts found.")
+				fmt.Println(dim("No posts found."))
 				return nil
 			}
 			printPostsTable(posts)
@@ -91,7 +129,7 @@ func newPostsCreateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Created post #%d\n", post.ID)
+			fmt.Println(ok(fmt.Sprintf("Created post %s", cyan(fmt.Sprintf("#%d", post.ID)))))
 			return printJSON(post)
 		},
 	}
@@ -112,7 +150,7 @@ func newPostsUpdateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Updated post #%d\n", post.ID)
+			fmt.Println(ok(fmt.Sprintf("Updated post %s", cyan(fmt.Sprintf("#%d", post.ID)))))
 			return printJSON(post)
 		},
 	}
@@ -131,7 +169,7 @@ func newPostsDeleteCmd() *cobra.Command {
 			if err := clientFromFlags().DeletePost(args[0], mfa); err != nil {
 				return err
 			}
-			fmt.Printf("Deleted post #%s\n", args[0])
+			fmt.Println(ok(fmt.Sprintf("Deleted post %s", cyan("#"+args[0]))))
 			return nil
 		},
 	}
@@ -162,7 +200,7 @@ func newPostsReanalyzeCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Reanalysis job queued: %s\n", jobID)
+			fmt.Println(ok("Reanalysis job queued: " + yellow(jobID)))
 			return nil
 		},
 	}
@@ -185,7 +223,7 @@ func newPostsExportCmd() *cobra.Command {
 			if err := os.WriteFile(output, data, 0o644); err != nil {
 				return err
 			}
-			fmt.Printf("Wrote %d bytes to %s\n", len(data), output)
+			fmt.Println(ok(fmt.Sprintf("Wrote %s bytes to %s", cyan(fmt.Sprintf("%d", len(data))), cyan(output))))
 			return nil
 		},
 	}

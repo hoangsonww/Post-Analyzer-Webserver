@@ -10,6 +10,7 @@ import (
 var (
 	flagServerURL string
 	flagToken     string
+	flagNoColor   bool
 )
 
 // Execute is the gateway binary's single entry point. With no subcommand
@@ -27,11 +28,23 @@ func Execute() {
 			runServe()
 			return nil
 		},
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			if flagNoColor {
+				colorEnabled = false
+			}
+		},
 		SilenceUsage: true,
+		// Cobra's default error handling prints its own plain "Error:
+		// ..." to stderr before returning the error up the call stack —
+		// which would print *in addition to* our own colored fail()
+		// message below, once for every failed command. We're the only
+		// error-printer here.
+		SilenceErrors: true,
 	}
 
 	root.PersistentFlags().StringVar(&flagServerURL, "server", envOr("POST_ANALYZER_SERVER", "http://localhost:8080"), "gateway base URL (CLI/REPL modes)")
 	root.PersistentFlags().StringVar(&flagToken, "token", "", "JWT token (defaults to the one saved by `login`, then $POST_ANALYZER_TOKEN)")
+	root.PersistentFlags().BoolVar(&flagNoColor, "no-color", false, "disable colored output (also respects $NO_COLOR)")
 
 	root.AddCommand(newServeCmd())
 	root.AddCommand(newLoginCmd())
@@ -40,7 +53,7 @@ func Execute() {
 	root.AddCommand(newReplCmd())
 
 	if err := root.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, fail(err.Error()))
 		os.Exit(1)
 	}
 }

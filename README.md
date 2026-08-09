@@ -167,6 +167,23 @@ go build -o post-analyzer ./cmd/gateway
 
 RPC (Kitex/Thrift/TTHeader) is what the gateway itself speaks to `postsvc`/`authsvc` internally — see `internal/rpcclient` for the plain-Go interfaces that hide this from the rest of the gateway code.
 
+### CLI/REPL output is colorized
+
+Success (✓ green), errors (✗ red), table headers (bold), IDs (cyan), timestamps (dim), and sentiment labels/bars (green/yellow/red by class) — colored automatically when stdout is a real terminal, and automatically **off** when it isn't (piped to a file, redirected in a script, captured by `| tee`, running in most CI log viewers) or when [`NO_COLOR`](https://no-color.org) is set. `--no-color` forces it off explicitly. The REPL also opens with a small banner:
+
+```
+  _____   __          __
+ |  __ \ /\ \        / /
+ | |__) /  \ \  /\  / /
+ |  ___/ /\ \ \/  \/ /
+ | |  / ____ \  /\  /
+ |_| /_/    \_\/  \/
+
+connected to http://localhost:8080
+Type "help" for commands, "exit" to quit.
+post-analyzer>
+```
+
 ### The web UI (`/`) has real CRUD now, not just a viewer
 
 `home.html` is a small SPA-ish page (vanilla JS, no framework, no CDN dependencies — even the character-frequency bar charts are hand-rolled, not Chart.js) backed by a set of JSON endpoints under `/web/*`:

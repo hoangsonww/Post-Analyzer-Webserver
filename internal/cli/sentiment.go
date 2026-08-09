@@ -17,11 +17,29 @@ func newSentimentCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("sentiment: %s\n", label)
+			paint := sentimentColor(label)
+			fmt.Printf("sentiment: %s\n", paint(bold(label)))
 			for k, v := range probs {
-				fmt.Printf("  %-10s %.4f\n", k, v)
+				c := sentimentColor(k)
+				bar := strings.Repeat("█", int(v*20))
+				fmt.Printf("  %-10s %s %s\n", k, c(bar), dim(fmt.Sprintf("%.1f%%", v*100)))
 			}
 			return nil
 		},
+	}
+}
+
+// sentimentColor maps a label (positive/negative/neutral) to the color
+// used for both the label itself and its probability bar — green/red
+// carry their usual connotation; neutral gets yellow rather than a
+// third arbitrary hue.
+func sentimentColor(label string) func(string) string {
+	switch label {
+	case "positive":
+		return green
+	case "negative":
+		return red
+	default:
+		return yellow
 	}
 }
