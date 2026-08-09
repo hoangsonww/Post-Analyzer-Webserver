@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Post Analyzer Webserver — Microservices post analysis platform</title>
+<meta name="description" content="An enterprise-grade, CloudWeGo-based microservices backend for storing, serving, and analyzing posts — ABAC auth, three message brokers, ML sentiment analysis, and multi-cloud deployment.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%234f8cff'/%3E%3Cstop offset='1' stop-color='%23a970ff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='7' fill='url(%23g)'/%3E%3Cpath d='M9 21V11h4.3a3.2 3.2 0 0 1 0 6.4H11V21H9Zm2-5.4h2.2a1.4 1.4 0 0 0 0-2.8H11v2.8ZM18 21V11h2v10h-2Z' fill='white'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#060911;
+    --bg-alt:#0a0f1a;
+    --panel:#0d1420;
+    --panel-hover:#111a2b;
+    --border:rgba(255,255,255,.08);
+    --border-strong:rgba(255,255,255,.16);
+    --text:#e7edf6;
+    --text-dim:#8b96a8;
+    --text-dimmer:#5c6779;
+    --accent1:#4f8cff;
+    --accent2:#a970ff;
+    --accent3:#35d0ba;
+    --accent4:#ff9f43;
+    --radius:14px;
+    --maxw:1180px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px}
+
+  /* ---------- background ---------- */
+  .bg-fx{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+  .blob{position:absolute;border-radius:50%;filter:blur(70px);opacity:.35}
+  .blob.b1{width:520px;height:520px;top:-180px;left:-120px;background:radial-gradient(circle,var(--accent1),transparent 70%);animation:drift1 22s ease-in-out infinite}
+  .blob.b2{width:460px;height:460px;top:120px;right:-160px;background:radial-gradient(circle,var(--accent2),transparent 70%);animation:drift2 26s ease-in-out infinite}
+  .blob.b3{width:380px;height:380px;bottom:-160px;left:30%;background:radial-gradient(circle,var(--accent3),transparent 70%);animation:drift3 30s ease-in-out infinite}
+  @keyframes drift1{0%,100%{transform:translate(0,0)}50%{transform:translate(60px,40px)}}
+  @keyframes drift2{0%,100%{transform:translate(0,0)}50%{transform:translate(-50px,60px)}}
+  @keyframes drift3{0%,100%{transform:translate(0,0)}50%{transform:translate(40px,-50px)}}
+  .grid-fx{position:absolute;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse 90% 60% at 50% 0%,#000 30%,transparent 75%);opacity:.5}
+
+  /* ---------- nav ---------- */
+  nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(14px);background:rgba(6,9,17,.72);border-bottom:1px solid var(--border)}
+  nav .wrap{display:flex;align-items:center;justify-content:space-between;height:64px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;letter-spacing:.2px}
+  .brand svg{width:28px;height:28px;flex:none}
+  .navlinks{display:flex;gap:28px;font-size:14px;color:var(--text-dim)}
+  .navlinks a{transition:color .2s}
+  .navlinks a:hover{color:var(--text)}
+  .nav-cta{display:flex;align-items:center;gap:14px}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:9px;font-size:13.5px;font-weight:600;border:1px solid var(--border-strong);transition:.2s;white-space:nowrap}
+  .btn:hover{border-color:var(--accent1);background:var(--panel-hover)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent1),var(--accent2));border:none;color:#fff;box-shadow:0 8px 24px -8px rgba(79,140,255,.55)}
+  .btn.primary:hover{filter:brightness(1.08);transform:translateY(-1px)}
+  .btn svg{width:15px;height:15px}
+
+  /* ---------- hero ---------- */
+  header.hero{position:relative;z-index:1;padding:104px 0 88px;text-align:center}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;border:1px solid var(--border-strong);background:var(--panel);font-size:12.5px;color:var(--text-dim);font-weight:600;letter-spacing:.3px;opacity:0;animation:fadeUp .7s .05s ease forwards}
+  .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--accent3);box-shadow:0 0 0 3px rgba(53,208,186,.2)}
+  h1.title{font-size:clamp(38px,6vw,68px);line-height:1.05;font-weight:800;letter-spacing:-1.5px;margin:22px 0 18px;opacity:0;animation:fadeUp .7s .15s ease forwards}
+  h1.title .grad{background:linear-gradient(100deg,var(--accent1),var(--accent2) 45%,var(--accent3) 90%);-webkit-background-clip:text;background-clip:text;color:transparent;background-size:200% auto;animation:shine 7s linear infinite}
+  @keyframes shine{to{background-position:200% center}}
+  p.lede{max-width:640px;margin:0 auto;color:var(--text-dim);font-size:17.5px;line-height:1.65;opacity:0;animation:fadeUp .7s .25s ease forwards}
+  .hero-ctas{display:flex;gap:14px;justify-content:center;margin-top:34px;opacity:0;animation:fadeUp .7s .35s ease forwards}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+
+  .hero-diagram{position:relative;z-index:1;max-width:920px;margin:64px auto 0;opacity:0;animation:fadeUp .8s .45s ease forwards}
+  .hero-diagram svg{width:100%;height:auto;display:block}
+
+  /* ---------- sections ---------- */
+  section{position:relative;z-index:1;padding:88px 0}
+  .section-head{max-width:640px;margin:0 auto 48px;text-align:center}
+  .section-tag{font-size:12.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--accent1)}
+  .section-title{font-size:clamp(26px,3.4vw,36px);font-weight:800;letter-spacing:-.6px;margin:10px 0 12px}
+  .section-sub{color:var(--text-dim);font-size:15.5px;line-height:1.6}
+
+  .reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+  .reveal.in{opacity:1;transform:translateY(0)}
+
+  /* stats */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+  .stat{background:var(--panel);padding:30px 18px;text-align:center}
+  .stat b{display:block;font-size:34px;font-weight:800;background:linear-gradient(135deg,var(--accent1),var(--accent3));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .stat span{display:block;margin-top:6px;font-size:12.5px;color:var(--text-dim);font-weight:600;letter-spacing:.3px}
+
+  /* features */
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:26px;transition:transform .25s,border-color .25s,background .25s}
+  .card:hover{transform:translateY(-4px);border-color:var(--border-strong);background:var(--panel-hover)}
+  .card .icon{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;margin-bottom:16px}
+  .card .icon svg{width:22px;height:22px}
+  .card h3{margin:0 0 8px;font-size:16px;font-weight:700}
+  .card p{margin:0;color:var(--text-dim);font-size:14px;line-height:1.6}
+  .ic-blue{background:rgba(79,140,255,.14);color:var(--accent1)}
+  .ic-purple{background:rgba(169,112,255,.14);color:var(--accent2)}
+  .ic-teal{background:rgba(53,208,186,.14);color:var(--accent3)}
+  .ic-orange{background:rgba(255,159,67,.14);color:var(--accent4)}
+
+  /* messaging flow */
+  .flow{display:flex;align-items:center;justify-content:center;gap:0;flex-wrap:wrap;margin-top:8px}
+  .flow-node{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 20px;font-size:13px;font-weight:700;text-align:center;min-width:130px}
+  .flow-node span{display:block;font-weight:500;color:var(--text-dim);font-size:11.5px;margin-top:4px}
+  .flow-arrow{width:56px;height:20px;flex:none}
+
+  /* stack chips */
+  .chipcloud{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:920px;margin:0 auto}
+  .chip{border:1px solid var(--border);background:var(--panel);padding:8px 14px;border-radius:999px;font-size:13px;color:var(--text-dim);font-weight:600;transition:.2s}
+  .chip:hover{border-color:var(--accent1);color:var(--text);transform:translateY(-2px)}
+
+  footer{position:relative;z-index:1;border-top:1px solid var(--border);padding:44px 0;text-align:center;color:var(--text-dimmer);font-size:13px}
+  footer a{color:var(--text-dim);font-weight:600}
+  footer a:hover{color:var(--text)}
+  .foot-links{display:flex;gap:22px;justify-content:center;margin-bottom:16px;font-size:13.5px}
+
+  @media(max-width:860px){
+    .navlinks{display:none}
+    .grid{grid-template-columns:1fr 1fr}
+    .stats{grid-template-columns:1fr 1fr}
+  }
+  @media(max-width:560px){
+    .grid{grid-template-columns:1fr}
+    .stats{grid-template-columns:1fr 1fr}
+    .hero-ctas{flex-direction:column;align-items:stretch}
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-fx">
+  <div class="grid-fx"></div>
+  <div class="blob b1"></div>
+  <div class="blob b2"></div>
+  <div class="blob b3"></div>
+</div>
+
+<nav>
+  <div class="wrap">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="navg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4f8cff"/><stop offset="1" stop-color="#a970ff"/></linearGradient></defs><rect width="32" height="32" rx="8" fill="url(#navg)"/><path d="M9 21V11h4.3a3.2 3.2 0 0 1 0 6.4H11V21H9Zm2-5.4h2.2a1.4 1.4 0 0 0 0-2.8H11v2.8ZM18 21V11h2v10h-2Z" fill="#fff"/></svg>
+      Post Analyzer
+    </div>
+    <div class="navlinks">
+      <a href="#features">Features</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#messaging">Messaging</a>
+      <a href="#stack">Stack</a>
+    </div>
+    <div class="nav-cta">
+      <a class="btn" href="./README.md">Docs</a>
+      <a class="btn primary" href="https://github.com/hoangsonww/Post-Analyzer" target="_blank" rel="noopener">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow"><span class="dot"></span> CloudWeGo · Microservices · v3.0.0</span>
+    <h1 class="title">Post analysis,<br><span class="grad">built like production.</span></h1>
+    <p class="lede">A Kitex/Hertz microservices backend that stores, serves, and analyzes posts — ABAC authorization, three purpose-built message brokers, ML sentiment scoring, and one-command deploys to Kubernetes on AWS, Azure, or OCI.</p>
+    <div class="hero-ctas">
+      <a class="btn primary" href="https://github.com/hoangsonww/Post-Analyzer" target="_blank" rel="noopener">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        Star on GitHub
+      </a>
+      <a class="btn" href="./ARCHITECTURE.md">
+        View architecture
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 3l5 5-5 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+    </div>
+
+    <div class="hero-diagram">
+      <svg viewBox="0 0 920 220" fill="none">
+        <g font-family="inherit" font-size="12" font-weight="700">
+          <rect x="20" y="88" width="120" height="44" rx="9" fill="#0d1420" stroke="#1b2436"/>
+          <text x="80" y="115" fill="#e7edf6" text-anchor="middle">Browser</text>
+
+          <rect x="200" y="88" width="140" height="44" rx="9" fill="#0d1420" stroke="#4f8cff"/>
+          <text x="270" y="110" fill="#e7edf6" text-anchor="middle">Gateway</text>
+          <text x="270" y="124" fill="#8b96a8" text-anchor="middle" font-weight="500" font-size="10">Hertz · Netpoll</text>
+
+          <rect x="420" y="30" width="140" height="44" rx="9" fill="#0d1420" stroke="#a970ff"/>
+          <text x="490" y="52" fill="#e7edf6" text-anchor="middle">postsvc</text>
+          <text x="490" y="66" fill="#8b96a8" text-anchor="middle" font-weight="500" font-size="10">Kitex RPC</text>
+
+          <rect x="420" y="146" width="140" height="44" rx="9" fill="#0d1420" stroke="#a970ff"/>
+          <text x="490" y="168" fill="#e7edf6" text-anchor="middle">authsvc</text>
+          <text x="490" y="182" fill="#8b96a8" text-anchor="middle" font-weight="500" font-size="10">ABAC · JWT</text>
+
+          <rect x="640" y="0" width="150" height="40" rx="9" fill="#0d1420" stroke="#35d0ba"/>
+          <text x="715" y="24" fill="#e7edf6" text-anchor="middle" font-size="11">Postgres · Redis</text>
+
+          <rect x="640" y="52" width="150" height="40" rx="9" fill="#0d1420" stroke="#ff9f43"/>
+          <text x="715" y="76" fill="#e7edf6" text-anchor="middle" font-size="11">Kafka · RabbitMQ</text>
+
+          <rect x="640" y="104" width="150" height="40" rx="9" fill="#0d1420" stroke="#ff9f43"/>
+          <text x="715" y="128" fill="#e7edf6" text-anchor="middle" font-size="11">RocketMQ · MinIO</text>
+
+          <rect x="640" y="156" width="150" height="40" rx="9" fill="#0d1420" stroke="#35d0ba"/>
+          <text x="715" y="180" fill="#e7edf6" text-anchor="middle" font-size="11">Nvidia Triton</text>
+        </g>
+        <g stroke-width="1.6" fill="none">
+          <path id="p1" d="M140 110 H200" stroke="#2a3550"/>
+          <path id="p2" d="M340 105 C 380 105, 380 52, 420 52" stroke="#2a3550"/>
+          <path id="p3" d="M340 118 C 380 118, 380 168, 420 168" stroke="#2a3550"/>
+          <path id="p4" d="M560 45 C 600 45, 600 20, 640 20" stroke="#2a3550"/>
+          <path id="p5" d="M560 55 C 610 55, 610 72, 640 72" stroke="#2a3550"/>
+          <path id="p6" d="M560 60 C 620 60, 620 124, 640 124" stroke="#2a3550"/>
+          <path id="p7" d="M560 65 C 630 65, 630 176, 640 176" stroke="#2a3550"/>
+        </g>
+        <g fill="none" stroke-linecap="round">
+          <use href="#p1" stroke="#4f8cff" stroke-width="2" stroke-dasharray="6 10" class="flowline"/>
+          <use href="#p2" stroke="#a970ff" stroke-width="2" stroke-dasharray="6 10" class="flowline"/>
+          <use href="#p3" stroke="#a970ff" stroke-width="2" stroke-dasharray="6 10" class="flowline"/>
+          <use href="#p4" stroke="#35d0ba" stroke-width="2" stroke-dasharray="6 10" class="flowline"/>
+          <use href="#p5" stroke="#ff9f43" stroke-width="2" stroke-dasharray="6 10" class="flowline"/>
+          <use href="#p6" stroke="#ff9f43" stroke-width="2" stroke-dasharray="6 10" class="flowline"/>
+          <use href="#p7" stroke="#35d0ba" stroke-width="2" stroke-dasharray="6 10" class="flowline"/>
+        </g>
+      </svg>
+    </div>
+  </div>
+</header>
+
+<section id="stats" class="reveal">
+  <div class="wrap">
+    <div class="stats">
+      <div class="stat"><b data-count="6">0</b><span>Services &amp; binaries</span></div>
+      <div class="stat"><b data-count="3">0</b><span>Message brokers</span></div>
+      <div class="stat"><b data-count="3">0</b><span>Cloud IaC targets</span></div>
+      <div class="stat"><b data-count="4">0</b><span>Interfaces: HTTP/RPC/CLI/REPL</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="section-tag">Features</div>
+      <h2 class="section-title">Everything a production backend needs</h2>
+      <p class="section-sub">Not a toy demo — real ABAC, real observability, real deploy artifacts.</p>
+    </div>
+    <div class="grid">
+      <div class="card reveal">
+        <div class="icon ic-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h10" stroke-linecap="round"/></svg></div>
+        <h3>RPC &amp; HTTP, dual surface</h3>
+        <p>Kitex (Thrift, TTHeader, mux) between services; Hertz + Netpoll at the HTTP edge. One codebase, two transports.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon ic-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l7 4v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7l7-4Z" stroke-linejoin="round"/></svg></div>
+        <h3>ABAC authorization</h3>
+        <p>Role- and attribute-based policy decisions from a dedicated authsvc, enforced as gateway middleware on every route.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon ic-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h16" stroke-linecap="round"/><circle cx="8" cy="7" r="1.6" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="10" cy="17" r="1.6" fill="currentColor" stroke="none"/></svg></div>
+        <h3>Three purpose-built brokers</h3>
+        <p>Kafka for the durable analytics event log, RabbitMQ for the reanalysis work queue, RocketMQ for native delayed rechecks.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon ic-teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <h3>ML sentiment scoring</h3>
+        <p>Post text classified via an Nvidia Triton inference server serving an ONNX model trained with scikit-learn.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon ic-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <h3>Full observability</h3>
+        <p>Prometheus metrics + Grafana dashboards out of the box, structured logs, and health/readiness probes on every service.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon ic-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12l5-8h8l5 8-5 8H8l-5-8Z" stroke-linejoin="round"/></svg></div>
+        <h3>Multi-cloud, on request</h3>
+        <p>Kustomize base + overlays, Argo Rollouts canary/blue-green, Istio mesh, and Terraform modules for AWS, Azure, and OCI.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="messaging">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="section-tag">Messaging</div>
+      <h2 class="section-title">One broker per job, not one broker for everything</h2>
+      <p class="section-sub">Each broker exists for a distinct delivery guarantee the post-analysis pipeline actually needs.</p>
+    </div>
+    <div class="reveal flow">
+      <div class="flow-node">Kafka<span>durable event log</span></div>
+      <svg class="flow-arrow" viewBox="0 0 56 20" fill="none" stroke="#2a3550" stroke-width="2"><path d="M2 10h48M42 4l8 6-8 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="flow-node">RabbitMQ<span>reanalysis queue</span></div>
+      <svg class="flow-arrow" viewBox="0 0 56 20" fill="none" stroke="#2a3550" stroke-width="2"><path d="M2 10h48M42 4l8 6-8 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="flow-node">RocketMQ<span>delayed rechecks</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="stack">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="section-tag">Tech stack</div>
+      <h2 class="section-title">Built on CloudWeGo &amp; friends</h2>
+    </div>
+    <div class="chipcloud reveal">
+      <span class="chip">Kitex</span><span class="chip">Hertz</span><span class="chip">Sonic</span><span class="chip">Netpoll</span><span class="chip">TTHeader</span><span class="chip">Thrift</span><span class="chip">Protobuf</span><span class="chip">Cobra CLI</span><span class="chip">JWT</span><span class="chip">ABAC</span><span class="chip">bcrypt</span><span class="chip">PostgreSQL</span><span class="chip">Redis</span><span class="chip">Kafka</span><span class="chip">RabbitMQ</span><span class="chip">RocketMQ</span><span class="chip">MinIO</span><span class="chip">Nvidia Triton</span><span class="chip">ONNX</span><span class="chip">Prometheus</span><span class="chip">Grafana</span><span class="chip">nginx</span><span class="chip">Docker</span><span class="chip">Kubernetes</span><span class="chip">Argo Rollouts</span><span class="chip">Istio</span><span class="chip">Terraform</span><span class="chip">GitHub Actions</span>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-links">
+      <a href="./README.md">Documentation</a>
+      <a href="./ARCHITECTURE.md">Architecture</a>
+      <a href="./api-docs.yaml">OpenAPI spec</a>
+      <a href="https://github.com/hoangsonww/Post-Analyzer" target="_blank" rel="noopener">GitHub</a>
+    </div>
+    <div>MIT Licensed · Built by <a href="https://github.com/hoangsonww" target="_blank" rel="noopener">hoangsonww</a></div>
+  </div>
+</footer>
+
+<style>
+  .flowline{animation:dash 1.8s linear infinite}
+  @keyframes dash{to{stroke-dashoffset:-32}}
+</style>
+<script>
+  // Scroll reveal
+  var reveals = document.querySelectorAll('.reveal');
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
+    });
+  }, {threshold:.14});
+  reveals.forEach(function(el){ io.observe(el); });
+
+  // Stat count-up
+  var counted = false;
+  var statsSection = document.getElementById('stats');
+  var statIO = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting && !counted){
+        counted = true;
+        document.querySelectorAll('.stat b').forEach(function(el){
+          var target = parseInt(el.getAttribute('data-count'), 10);
+          var start = 0;
+          var dur = 900;
+          var t0 = performance.now();
+          function step(t){
+            var p = Math.min(1, (t - t0) / dur);
+            el.textContent = Math.round(start + (target - start) * (1 - Math.pow(1 - p, 3)));
+            if(p < 1) requestAnimationFrame(step);
+          }
+          requestAnimationFrame(step);
+        });
+      }
+    });
+  }, {threshold:.4});
+  if(statsSection) statIO.observe(statsSection);
+</script>
+</body>
+</html>
