@@ -1,0 +1,39 @@
+# Keeps the Docker build context to "what a Go build actually needs" —
+# without this, `docker build` was copying in gigabytes of unrelated
+# local state (Terraform provider binaries alone run 1GB+ across the
+# three cloud environments) on every single build, for every service.
+
+.git/
+.idea/
+.vscode/
+
+# Terraform local state/provider cache — never needed to build a Go
+# binary, and provider binaries alone are hundreds of MB per cloud.
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+
+# Local dev/test artifacts
+*.test
+*.out
+coverage.txt
+coverage.html
+*.log
+.env
+.env.local
+.env.*.local
+
+# Playwright / screenshot scratch output from local UI verification
+.playwright-mcp/
+
+# Compiled binaries that might exist locally from `go build`
+/gateway
+/postsvc
+/authsvc
+/analytics-consumer
+/notification-consumer
+/reanalysis-worker
+
+# Node (dashboard/docs tooling, if ever added) — not part of any Go build
+node_modules/
