@@ -1,0 +1,22 @@
+meta {
+  name: Re-login as admin (restore {{token}} for anything after this folder)
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/api/v1/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "username": "admin",
+    "password": "admin123"
+  }
+}
+
+script:post-response {
+  bru.setVar("token", res.getBody().data.token);
+}

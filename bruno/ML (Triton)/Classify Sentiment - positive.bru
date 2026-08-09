@@ -1,0 +1,23 @@
+meta {
+  name: Classify Sentiment - positive
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/ml/sentiment
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "text": "I love this, fantastic work"
+  }
+}
+
+tests {
+  test("status 200 or 503", function() {
+    expect([200, 503]).to.include(res.getStatus());
+  });
+}

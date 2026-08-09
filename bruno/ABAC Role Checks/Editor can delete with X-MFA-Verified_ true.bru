@@ -1,0 +1,21 @@
+meta {
+  name: Editor can delete with X-MFA-Verified: true
+  type: http
+  seq: 8
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/posts/{{postId}}
+  body: none
+  auth: inherit
+}
+
+headers {
+  X-MFA-Verified: true
+}
+
+tests {
+  test("status 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

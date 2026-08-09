@@ -1,0 +1,11 @@
+meta {
+  name: Export Posts (CSV)
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/api/v1/posts/export?format=csv
+  body: none
+  auth: inherit
+}

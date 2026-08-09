@@ -1,0 +1,29 @@
+meta {
+  name: Editor can create a post
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/v1/posts
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "userId": 1,
+    "title": "editor post",
+    "body": "created for the MFA-delete check below"
+  }
+}
+
+script:post-response {
+  bru.setVar("postId", String(res.getBody().data.id));
+}
+
+tests {
+  test("status 201", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+}

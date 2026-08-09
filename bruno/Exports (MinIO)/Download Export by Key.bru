@@ -1,0 +1,11 @@
+meta {
+  name: Download Export by Key
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/exports/{{exportKey}}
+  body: none
+  auth: inherit
+}
