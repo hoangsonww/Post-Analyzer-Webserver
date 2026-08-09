@@ -1,0 +1,17 @@
+meta {
+  name: Classify Sentiment - negative
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/ml/sentiment
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "text": "This is terrible and I hate it"
+  }
+}

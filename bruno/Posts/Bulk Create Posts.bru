@@ -1,0 +1,26 @@
+meta {
+  name: Bulk Create Posts
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/v1/posts/bulk
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "posts": [
+      { "userId": 1, "title": "Bulk 1", "body": "First bulk post" },
+      { "userId": 1, "title": "Bulk 2", "body": "Second bulk post" }
+    ]
+  }
+}
+
+tests {
+  test("status 201 or 207", function() {
+    expect([201, 207]).to.include(res.getStatus());
+  });
+}

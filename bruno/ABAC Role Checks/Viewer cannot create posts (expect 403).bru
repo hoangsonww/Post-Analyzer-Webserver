@@ -1,0 +1,25 @@
+meta {
+  name: Viewer cannot create posts (expect 403)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/posts
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "userId": 1,
+    "title": "should be denied",
+    "body": "viewer cannot write"
+  }
+}
+
+tests {
+  test("status 403", function() {
+    expect(res.getStatus()).to.equal(403);
+  });
+}

@@ -26,12 +26,13 @@ func newReplCmd() *cobra.Command {
 // admin123", etc. behave identically here and on the command line. Errors
 // are printed and the loop continues; only `exit`/`quit`/EOF ends it.
 func runRepl() {
-	fmt.Println("Post Analyzer REPL — connected to", flagServerURL)
-	fmt.Println(`Type "help" for commands, "exit" to quit.`)
+	printBanner()
+	fmt.Println(dim("connected to ") + cyan(flagServerURL))
+	fmt.Println(dim(`Type "help" for commands, "exit" to quit.`))
 
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
-		fmt.Print("post-analyzer> ")
+		fmt.Print(bold(cyan("post-analyzer> ")))
 		if !scanner.Scan() {
 			fmt.Println()
 			return
@@ -54,14 +55,14 @@ func runRepl() {
 
 		args, err := tokenize(line)
 		if err != nil {
-			fmt.Println("error:", err)
+			fmt.Println(fail(err.Error()))
 			continue
 		}
 
 		replRoot := buildReplCommandTree()
 		replRoot.SetArgs(args)
 		if err := replRoot.Execute(); err != nil {
-			fmt.Println("error:", err)
+			fmt.Println(fail(err.Error()))
 		}
 	}
 }
@@ -71,25 +72,48 @@ func runRepl() {
 // across REPL lines risks stale flag values leaking between commands —
 // rebuilding is cheap and avoids that entirely.
 func buildReplCommandTree() *cobra.Command {
-	root := &cobra.Command{Use: "post-analyzer", SilenceUsage: true, SilenceErrors: false}
+	// SilenceErrors: true — same reasoning as root.go's Execute(): the
+	// REPL loop's own fail()-colored print below is the single source
+	// of error output, not cobra's built-in plain "Error: ..." print.
+	root := &cobra.Command{Use: "post-analyzer", SilenceUsage: true, SilenceErrors: true}
 	root.AddCommand(newLoginCmd(), newPostsCmd(), newSentimentCmd())
 	return root
 }
 
+// replHelpLine pads cmdText to a fixed column width *before* colorizing
+// it — padding a string that already contains ANSI escape codes would
+// count those invisible bytes toward the width and break alignment.
+func replHelpLine(cmdText, desc string) string {
+	const col = 32
+	pad := col - len(cmdText)
+	if pad < 1 {
+		pad = 1
+	}
+	styled := "  " + bold(yellow(cmdText))
+	if desc == "" {
+		return styled
+	}
+	return styled + strings.Repeat(" ", pad) + dim(desc)
+}
+
 func printReplHelp() {
-	fmt.Println(`Commands:
-  login <username> <password>   Log in (admin/admin123, editor/editor123, viewer/viewer123 by default)
-  posts list
-  posts get <id>
-  posts create --title "..." --body "..." [--user-id N]
-  posts update <id> [--title "..."] [--body "..."]
-  posts delete <id> [--mfa]
-  posts analyze
-  posts reanalyze
-  posts export [--format json|csv] [--output file]
-  sentiment <text...>
-  clear                         Clear the screen
-  exit | quit                   Leave the REPL`)
+	fmt.Println(bold("Commands:"))
+	for _, l := range [][2]string{
+		{`login <username> <password>`, "Log in (admin/admin123, editor/editor123, viewer/viewer123 by default)"},
+		{`posts list`, ""},
+		{`posts get <id>`, ""},
+		{`posts create --title "..." --body "..." [--user-id N]`, ""},
+		{`posts update <id> [--title "..."] [--body "..."]`, ""},
+		{`posts delete <id> [--mfa]`, ""},
+		{`posts analyze`, ""},
+		{`posts reanalyze`, ""},
+		{`posts export [--format json|csv] [--output file]`, ""},
+		{`sentiment <text...>`, ""},
+		{`clear`, "Clear the screen"},
+		{`exit | quit`, "Leave the REPL"},
+	} {
+		fmt.Println(replHelpLine(l[0], l[1]))
+	}
 }
 
 // tokenize is a minimal shell-style splitter supporting "double" and

@@ -1,0 +1,17 @@
+meta {
+  name: Analytics (character frequency)
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/api/v1/posts/analytics
+  body: none
+  auth: inherit
+}
+
+tests {
+  test("status 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

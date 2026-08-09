@@ -1,0 +1,11 @@
+meta {
+  name: Export Posts (JSON)
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/v1/posts/export?format=json
+  body: none
+  auth: inherit
+}

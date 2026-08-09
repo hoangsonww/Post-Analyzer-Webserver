@@ -1,0 +1,17 @@
+meta {
+  name: Reanalyze Posts (async, RabbitMQ)
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/api/v1/posts/reanalyze
+  body: none
+  auth: inherit
+}
+
+tests {
+  test("status 202 or 503", function() {
+    expect([202, 503]).to.include(res.getStatus());
+  });
+}

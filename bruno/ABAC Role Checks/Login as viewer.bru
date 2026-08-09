@@ -1,0 +1,28 @@
+meta {
+  name: Login as viewer
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "username": "viewer",
+    "password": "viewer123"
+  }
+}
+
+script:post-response {
+  bru.setVar("token", res.getBody().data.token);
+}
+
+tests {
+  test("status 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

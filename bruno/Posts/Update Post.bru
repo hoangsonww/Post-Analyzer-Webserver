@@ -1,0 +1,23 @@
+meta {
+  name: Update Post
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/api/v1/posts/{{postId}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "title": "Updated via Postman"
+  }
+}
+
+tests {
+  test("status 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

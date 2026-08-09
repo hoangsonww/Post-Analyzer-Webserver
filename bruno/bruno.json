@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "Post Analyzer Webserver",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

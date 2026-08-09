@@ -1,0 +1,17 @@
+meta {
+  name: Editor cannot delete without MFA header (expect 403)
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/posts/{{postId}}
+  body: none
+  auth: inherit
+}
+
+tests {
+  test("status 403", function() {
+    expect(res.getStatus()).to.equal(403);
+  });
+}
