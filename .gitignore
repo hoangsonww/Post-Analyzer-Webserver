@@ -56,3 +56,16 @@ data/
 # Temporary files
 tmp/
 temp/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log
+
+# Playwright MCP tooling output (browser snapshots/console logs from manual QA)
+.playwright-mcp/

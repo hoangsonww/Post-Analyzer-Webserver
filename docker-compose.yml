@@ -1,4 +1,39 @@
-version: '3.8'
+# Common environment for every app service. Kept together so the shared
+# broker/db/security settings don't drift between services as they're added.
+x-app-env: &app-env
+  ENVIRONMENT: production
+  DB_TYPE: postgres
+  DB_HOST: postgres
+  DB_PORT: 5432
+  DB_USER: postgres
+  DB_PASSWORD: postgres
+  DB_NAME: postanalyzer
+  DB_SSL_MODE: disable
+  DB_MAX_CONNS: 25
+  DB_MIN_CONNS: 5
+  REDIS_ENABLED: "true"
+  REDIS_ADDR: redis:6379
+  KAFKA_ENABLED: "true"
+  KAFKA_BROKERS: kafka:9092
+  RABBITMQ_ENABLED: "true"
+  RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+  ROCKETMQ_ENABLED: "true"
+  ROCKETMQ_NAMESRV_ADDRS: rocketmq-namesrv:9876
+  MINIO_ENABLED: "true"
+  MINIO_ENDPOINT: minio:9000
+  MINIO_ACCESS_KEY: minioadmin
+  MINIO_SECRET_KEY: minioadmin
+  TRITON_ENABLED: "true"
+  TRITON_URL: http://triton:8000
+  JWT_SECRET: change-me-in-production
+  ADMIN_USERNAME: admin
+  ADMIN_PASSWORD: admin123
+  LOG_LEVEL: info
+  LOG_FORMAT: json
+  RATE_LIMIT_REQUESTS: 100
+  RATE_LIMIT_WINDOW: 1m
+  MAX_BODY_SIZE: 1048576
+  ALLOWED_ORIGINS: "*"
 
 services:
   # PostgreSQL database
@@ -10,7 +45,10 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5432:5432"
+      # Host port 5433, not 5432: many dev machines already run a local
+      # Postgres on 5432 (this repo assumes that's common — see README).
+      # Internally, other containers still reach this one at postgres:5432.
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -21,50 +59,269 @@ services:
     networks:
       - app-network
 
-  # Post Analyzer application
-  app:
+  # Redis cache
+  redis:
+    image: redis:7-alpine
+    container_name: post-analyzer-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  # Kafka (KRaft mode, single node) — post-events analytics stream.
+  # PLAINTEXT is for other containers on this network; PLAINTEXT_HOST is
+  # for host-side tools/tests connecting via localhost:9094.
+  kafka:
+    image: apache/kafka:latest
+    container_name: post-analyzer-kafka
+    ports:
+      - "9094:9094"
+    environment:
+      KAFKA_NODE_ID: 0
+      KAFKA_PROCESS_ROLES: controller,broker
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,PLAINTEXT_HOST://:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://127.0.0.1:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 0@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+    restart: unless-stopped
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # One-shot: pre-creates the post.events topic before any producer or
+  # consumer touches it. Kafka's default auto.create.topics.enable=true
+  # normally papers over needing this, but it caused a real, reproducible
+  # bug: the first consumer to start (analytics-consumer) triggered topic
+  # auto-creation itself via its own metadata/group-join request, was
+  # assigned the partition that had *just* been created in that same
+  # handshake, and its fetch loop then never picked up any messages —
+  # confirmed live: a plain `docker restart` against the now-already-
+  # existing topic consumed every pending message instantly. Explicit
+  # pre-creation (same pattern as rocketmq-init below) removes the race.
+  kafka-init:
+    image: apache/kafka:latest
+    container_name: post-analyzer-kafka-init
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        /opt/kafka/bin/kafka-topics.sh --create --if-not-exists \
+          --topic post.events --bootstrap-server kafka:9092 \
+          --partitions 1 --replication-factor 1
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - app-network
+
+  # RabbitMQ — reanalysis job queue. Management UI on :15672 (guest/guest).
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: post-analyzer-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # RocketMQ nameserver — post-notifications delayed/scheduled messages.
+  rocketmq-namesrv:
+    image: apache/rocketmq:5.3.1
+    container_name: post-analyzer-rocketmq-namesrv
+    command: ["sh", "mqnamesrv"]
+    ports:
+      - "9876:9876"
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # RocketMQ broker. brokerIP1 in broker.conf points at this service's own
+  # compose DNS name so other containers (postsvc, notification-consumer)
+  # can reach it; that only resolves inside this compose network.
+  rocketmq-broker:
+    image: apache/rocketmq:5.3.1
+    container_name: post-analyzer-rocketmq-broker
+    command: ["sh", "mqbroker", "-c", "/home/rocketmq/broker.conf"]
+    environment:
+      NAMESRV_ADDR: rocketmq-namesrv:9876
+    volumes:
+      - ./deployments/rocketmq/broker.conf:/home/rocketmq/broker.conf
+    ports:
+      - "10909:10909"
+      - "10911:10911"
+      - "10912:10912"
+    depends_on:
+      - rocketmq-namesrv
+    restart: unless-stopped
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/10911'"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  # One-shot: pre-creates the post-notifications topic. RocketMQ only
+  # auto-creates a topic on first publish, but notification-consumer needs
+  # it to exist before it can subscribe — without this, the consumer would
+  # crash-loop until postsvc happens to publish the first message.
+  rocketmq-init:
+    image: apache/rocketmq:5.3.1
+    container_name: post-analyzer-rocketmq-init
+    entrypoint: ["sh", "-c"]
+    # The broker's TCP port opens (and its healthcheck passes) before it
+    # has necessarily finished registering itself and its cluster with
+    # the nameserver — mqadmin can exit 0 without actually creating the
+    # topic if it runs in that window (seen in practice: "Make sure the
+    # specified clusterName exists" printed, exit code still 0). Loop
+    # until topicList actually shows the topic, not just until the
+    # command returns.
+    command:
+      - |
+        for i in $$(seq 1 20); do
+          sh mqadmin updateTopic -n rocketmq-namesrv:9876 -t post-notifications -c DefaultCluster || true
+          if sh mqadmin topicList -n rocketmq-namesrv:9876 | grep -qx post-notifications; then
+            echo "post-notifications topic confirmed present"
+            exit 0
+          fi
+          echo "topic not confirmed yet, retrying ($$i/20)..."
+          sleep 3
+        done
+        echo "gave up waiting for post-notifications topic to register"
+        exit 1
+    depends_on:
+      rocketmq-broker:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - app-network
+
+  # MinIO — local, self-hosted, S3-API-compatible object storage for
+  # persisted post exports. Console UI on :9001 (minioadmin/minioadmin).
+  minio:
+    image: minio/minio:latest
+    container_name: post-analyzer-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # postsvc — Kitex RPC: post CRUD, analysis, Postgres/Redis, Kafka +
+  # RocketMQ producers.
+  postsvc:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: post-analyzer-app
+      args:
+        SERVICE: postsvc
+    container_name: post-analyzer-postsvc
     environment:
-      # Server configuration
+      <<: *app-env
+      POSTSVC_ADDR: 0.0.0.0:9001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      rocketmq-broker:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9001"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # authsvc — Kitex RPC: JWT issuance + ABAC policy decisions.
+  authsvc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: authsvc
+    container_name: post-analyzer-authsvc
+    environment:
+      <<: *app-env
+      AUTHSVC_ADDR: 0.0.0.0:9002
+    restart: unless-stopped
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9002"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # gateway — Hertz HTTP edge: REST API, ABAC enforcement, web UI. No
+  # database connection of its own; talks to postsvc/authsvc over RPC.
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: gateway
+    # No container_name / host port here on purpose: both are
+    # incompatible with `docker compose up --scale gateway=N`. The
+    # gateway is reached through nginx (port 80), which the
+    # request/response cycle needs; it is not meant to be hit directly.
+    environment:
+      <<: *app-env
       PORT: 8080
       HOST: 0.0.0.0
-      ENVIRONMENT: production
       READ_TIMEOUT: 15s
       WRITE_TIMEOUT: 15s
       SHUTDOWN_TIMEOUT: 30s
-
-      # Database configuration
-      DB_TYPE: postgres
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: postanalyzer
-      DB_SSL_MODE: disable
-      DB_MAX_CONNS: 25
-      DB_MIN_CONNS: 5
-
-      # Security configuration
-      RATE_LIMIT_REQUESTS: 100
-      RATE_LIMIT_WINDOW: 1m
-      MAX_BODY_SIZE: 1048576
-      ALLOWED_ORIGINS: "*"
-
-      # Logging configuration
-      LOG_LEVEL: info
-      LOG_FORMAT: json
-      LOG_OUTPUT: stdout
-
-      # External API configuration
+      POSTSVC_ADDR: postsvc:9001
+      AUTHSVC_ADDR: authsvc:9002
       JSONPLACEHOLDER_URL: https://jsonplaceholder.typicode.com/posts
       HTTP_TIMEOUT: 30s
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     depends_on:
-      postgres:
+      postsvc:
+        condition: service_healthy
+      authsvc:
         condition: service_healthy
     restart: unless-stopped
     networks:
@@ -75,6 +332,108 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  # analytics-consumer — Kafka post.events -> Prometheus counters.
+  analytics-consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: analytics-consumer
+    container_name: post-analyzer-analytics-consumer
+    environment:
+      <<: *app-env
+      METRICS_PORT: "9101"
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # reanalysis-worker — RabbitMQ reanalysis.jobs -> postsvc.AnalyzePosts.
+  reanalysis-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: reanalysis-worker
+    container_name: post-analyzer-reanalysis-worker
+    environment:
+      <<: *app-env
+      METRICS_PORT: "9102"
+      POSTSVC_ADDR: postsvc:9001
+    depends_on:
+      postsvc:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # notification-consumer — RocketMQ delayed post-notifications delivery.
+  # NOTE: on a cold `docker compose up`, this may crash-loop a couple of
+  # times right after rocketmq-init creates the topic on the broker — the
+  # nameserver only learns about it on the broker's next heartbeat
+  # (~seconds). `restart: unless-stopped` recovers it automatically; no
+  # action needed.
+  notification-consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: notification-consumer
+    container_name: post-analyzer-notification-consumer
+    environment:
+      <<: *app-env
+      METRICS_PORT: "9103"
+    depends_on:
+      rocketmq-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # nginx — reverse proxy / load balancer in front of the gateway. Scale
+  # gateway horizontally with `--scale gateway=N`; nginx's upstream picks
+  # up new replicas via Docker's embedded DNS.
+  nginx:
+    image: nginx:alpine
+    container_name: post-analyzer-nginx
+    volumes:
+      - ./deployments/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - gateway
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # Nvidia Triton Inference Server (CPU mode) — serves post_sentiment, a
+  # small TF-IDF + logistic-regression classifier exported to ONNX (see
+  # deployments/triton/train_sentiment_model.py). No GPU required; runs
+  # on the onnxruntime CPU execution provider.
+  triton:
+    image: nvcr.io/nvidia/tritonserver:24.09-py3
+    container_name: post-analyzer-triton
+    command: ["tritonserver", "--model-repository=/models", "--model-control-mode=explicit", "--load-model=post_sentiment"]
+    volumes:
+      - ./deployments/triton/model_repository:/models:ro
+    ports:
+      - "8000:8000" # HTTP inference API
+      - "8001:8001" # gRPC inference API
+      - "8002:8002" # metrics
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/v2/health/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - app-network
 
   # Prometheus for metrics
   prometheus:
@@ -91,7 +450,7 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     depends_on:
-      - app
+      - gateway
     restart: unless-stopped
     networks:
       - app-network
@@ -107,6 +466,8 @@ services:
       - "3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./deployments/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deployments/grafana/dashboards:/etc/grafana/dashboards:ro
     depends_on:
       - prometheus
     restart: unless-stopped
@@ -115,6 +476,8 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
+  minio_data:
   prometheus_data:
   grafana_data:
 

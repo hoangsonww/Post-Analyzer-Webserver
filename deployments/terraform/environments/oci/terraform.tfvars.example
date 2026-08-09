@@ -1,0 +1,6 @@
+project        = "post-analyzer"
+environment    = "dev"
+region         = "us-ashburn-1"
+compartment_id = "ocid1.compartment.oc1..replace-with-your-compartment-ocid"
+
+# db_admin_password = "set-via-TF_VAR_db_admin_password"

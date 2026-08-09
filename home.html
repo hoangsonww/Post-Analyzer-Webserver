@@ -1,417 +1,600 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>{{.Title}}</title>
-    <link rel="icon" href="assets/favicon.ico" type="image/x-icon"/>
-    <style>
-        body {
-            font-family: 'Arial', sans-serif;
-            background-color: #f4f4f9;
-            margin: 40px;
-            color: #333;
-        }
-        header {
-            background: #0056b3;
-            color: #fff;
-            padding: 10px 20px;
-            text-align: center;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .button-container {
-            text-align: center;
-            margin-top: 20px;
-        }
-        .button {
-            display: inline-block;
-            padding: 10px 20px;
-            margin: 5px;
-            background-color: #007bff;
-            color: #fff;
-            text-decoration: none;
-            border-radius: 5px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            transition: background-color 0.3s, box-shadow 0.3s;
-            cursor: pointer;
-            border: none;
-            font-size: 14px;
-        }
-        .button:hover {
-            background-color: #0056b3;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-        }
-        .content {
-            margin-top: 20px;
-            padding: 20px;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .error {
-            color: #ff0000;
-        }
-        .posts, .analysis {
-            margin-top: 20px;
-        }
-        .post-item {
-            margin-bottom: 10px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #eee;
-        }
-        .char-frequency {
-            font-family: 'Courier New', monospace;
-        }
-        form {
-            margin-top: 20px;
-        }
-        form div {
-            margin-bottom: 10px;
-        }
-        form label {
-            display: block;
-            margin-bottom: 5px;
-        }
-        form input[type="text"], form textarea {
-            width: 100%;
-            padding: 8px;
-            box-sizing: border-box;
-        }
-        form input[type="submit"] {
-            background-color: #0056b3;
-            color: #fff;
-            padding: 10px 15px;
-            border: none;
-            cursor: pointer;
-            border-radius: 5px;
-        }
-        form input[type="submit"]:hover {
-            background-color: #004494;
-        }
-        #charFreqChart {
-            max-width: 95vw;
-            width: 1200px;
-            height: 400px;
-            max-height: 400px;
-            margin: 20px auto;
-        }
-        #analysisSection {
-            display: none;
-        }
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin: 20px 0;
-        }
-        .stat-card {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #007bff;
-        }
-        .stat-label {
-            font-size: 12px;
-            color: #666;
-            margin-bottom: 5px;
-        }
-        .stat-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #0056b3;
-        }
-        .top-chars {
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        .char-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px;
-            border-bottom: 1px solid #eee;
-        }
-        .char-item:hover {
-            background: #f8f9fa;
-        }
-    </style>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>{{.Title}} — Post Analyzer</title>
+<link rel="icon" href="assets/favicon.ico" type="image/x-icon"/>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-0: #f4f4f2;
+    --surface-1: #fcfcfb;
+    --surface-2: #ffffff;
+    --border: #e4e3de;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #85847c;
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --series-5: #e87ba4;
+    --series-6: #008300;
+    --series-7: #4a3aa7;
+    --series-8: #e34948;
+    --seq-500: #256abf;
+    --status-good: #0ca30c;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --surface-0: #121211; --surface-1: #1a1a19; --surface-2: #201f1d; --border: #34332f;
+      --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e85;
+      --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+      --series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --series-8: #e66767;
+      --seq-500: #3987e5; --status-good: #0ca30c;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-0: #121211; --surface-1: #1a1a19; --surface-2: #201f1d; --border: #34332f;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e85;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+    --series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --series-8: #e66767;
+    --seq-500: #3987e5; --status-good: #0ca30c;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--surface-0);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  a { color: inherit; }
+  button { font-family: inherit; }
+  .icon { width: 15px; height: 15px; flex: none; display: block; }
+  .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary); cursor: pointer; transition: .15s; }
+  .icon-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
+  .icon-btn.danger:hover { color: var(--series-8); border-color: var(--series-8); }
+
+  header {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 12px 24px; background: var(--surface-2); border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 15.5px; white-space: nowrap; }
+  .brand svg { width: 24px; height: 24px; flex: none; }
+  nav.toplinks { display: flex; align-items: center; gap: 4px; flex: 1; }
+  nav.toplinks a {
+    text-decoration: none; font-size: 13.5px; color: var(--text-secondary); padding: 7px 11px; border-radius: 7px; transition: .15s;
+  }
+  nav.toplinks a:hover { color: var(--text-primary); background: var(--surface-1); }
+  nav.toplinks a.active { color: var(--text-primary); background: var(--surface-1); font-weight: 600; }
+  .header-actions { display: flex; align-items: center; gap: 8px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 600;
+    padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-1);
+    color: var(--text-primary); cursor: pointer; transition: .15s; white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--text-muted); }
+  .btn.primary { background: var(--series-1); border-color: var(--series-1); color: #fff; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.danger { background: var(--series-8); border-color: var(--series-8); color: #fff; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .btn svg { width: 15px; height: 15px; }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 24px; }
+  .hidden { display: none !important; }
+
+  .error-banner { background: rgba(227,73,72,.1); border: 1px solid var(--series-8); color: var(--series-8); padding: 12px 16px; border-radius: var(--radius); margin-bottom: 18px; font-size: 13.5px; }
+
+  .hero { margin-bottom: 22px; }
+  .hero h1 { font-size: 21px; margin: 0 0 6px; }
+  .hero p { margin: 0; color: var(--text-secondary); font-size: 14px; max-width: 720px; line-height: 1.55; }
+
+  .toolbar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 12px 14px; margin-bottom: 18px;
+  }
+  .search-box { position: relative; flex: 1; min-width: 200px; }
+  .search-box svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--text-muted); }
+  .search-box input {
+    width: 100%; padding: 8px 10px 8px 32px; border-radius: 7px; border: 1px solid var(--border);
+    background: var(--surface-1); color: var(--text-primary); font-size: 13.5px;
+  }
+  .toolbar select {
+    padding: 8px 10px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface-1);
+    color: var(--text-primary); font-size: 13px;
+  }
+  .result-count { font-size: 12.5px; color: var(--text-muted); white-space: nowrap; }
+
+  .skeleton-grid, .posts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+  .skel-card { height: 148px; border-radius: var(--radius); background: linear-gradient(100deg, var(--surface-1) 30%, var(--surface-2) 50%, var(--surface-1) 70%); background-size: 200% 100%; animation: shimmer 1.4s ease-in-out infinite; border: 1px solid var(--border); }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  .post-card {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px; display: flex; flex-direction: column; gap: 8px; cursor: pointer; transition: .15s;
+  }
+  .post-card:hover { border-color: var(--text-muted); transform: translateY(-1px); }
+  .post-card .row-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .post-card h3 { margin: 0; font-size: 14.5px; line-height: 1.4; font-weight: 600; }
+  .post-card .card-actions { display: flex; gap: 6px; flex: none; }
+  .post-card p.body { margin: 0; font-size: 13px; color: var(--text-secondary); line-height: 1.55; flex: 1; }
+  .post-card .meta { display: flex; gap: 10px; font-size: 11.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .post-card .meta span { display: flex; align-items: center; gap: 4px; }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+  .empty-state svg { width: 40px; height: 40px; color: var(--text-muted); margin-bottom: 10px; }
+  .empty-state p { margin: 4px 0 16px; font-size: 13.5px; }
+
+  .pagination { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 20px; font-size: 13px; color: var(--text-secondary); }
+
+  .panel { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; margin-top: 22px; }
+  .panel h2 { font-size: 13px; margin: 0 0 14px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; display: flex; align-items: center; justify-content: space-between; }
+  .bar-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+  .bar-row .bar-label { width: 60px; flex-shrink: 0; font-size: 12px; color: var(--text-secondary); text-align: right; font-variant-numeric: tabular-nums; }
+  .bar-row .bar-track { flex: 1; background: var(--surface-1); border-radius: 4px; height: 16px; position: relative; overflow: hidden; }
+  .bar-row .bar-fill { height: 100%; border-radius: 4px; background: var(--seq-500); }
+  .bar-row .bar-value { width: 44px; flex-shrink: 0; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .stat-tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .stat-tile .label { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
+  .stat-tile .value { font-size: 20px; font-weight: 700; }
+
+  /* Modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
+  .modal { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); width: 100%; max-width: 520px; padding: 22px; max-height: 88vh; overflow-y: auto; }
+  .modal h2 { margin: 0 0 16px; font-size: 15.5px; }
+  .modal label { display: block; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 6px; }
+  .modal input[type="text"], .modal textarea {
+    width: 100%; padding: 9px 10px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface-1);
+    color: var(--text-primary); font-size: 13.5px; font-family: inherit; margin-bottom: 14px;
+  }
+  .modal textarea { min-height: 140px; resize: vertical; }
+  .modal .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+  .modal .modal-error { color: var(--series-8); font-size: 12.5px; min-height: 1em; margin-bottom: 10px; }
+  .modal .meta-line { font-size: 12px; color: var(--text-muted); margin-bottom: 14px; }
+  .modal .body-view { font-size: 13.5px; line-height: 1.65; white-space: pre-wrap; color: var(--text-primary); }
+
+  /* Toasts */
+  #toastContainer { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 200; }
+  .toast {
+    background: var(--surface-2); border: 1px solid var(--border); border-left: 3px solid var(--series-1);
+    border-radius: 8px; padding: 10px 14px; font-size: 13px; color: var(--text-primary); box-shadow: 0 6px 18px rgba(0,0,0,.15);
+    animation: toastIn .2s ease; min-width: 220px;
+  }
+  .toast.error { border-left-color: var(--series-8); }
+  .toast.success { border-left-color: var(--status-good); }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+  form.legacy-form div { margin-bottom: 14px; }
+  form.legacy-form label { display: block; margin-bottom: 5px; font-size: 13px; color: var(--text-secondary); }
+  form.legacy-form input[type="text"], form.legacy-form textarea {
+    width: 100%; padding: 9px 10px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); font-family: inherit; font-size: 13.5px;
+  }
+  form.legacy-form textarea { min-height: 140px; }
+
+  @media (max-width: 760px) {
+    nav.toplinks { display: none; }
+  }
+</style>
 </head>
 <body>
-    <header>
-        <h1 style="color: white">Post Viewer and Analyzer</h1>
-    </header>
-    <div class="button-container">
-        <a href="/" class="button">Home</a>
-        <a href="/fetch" class="button">Fetch Posts</a>
-        <button onclick="analyzeCharacters()" class="button">Analyze Character Frequency</button>
-        <a href="/add" class="button">Add New Post</a>
+
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="navg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2a78d6"/><stop offset="1" stop-color="#1baf7a"/></linearGradient></defs><rect width="32" height="32" rx="8" fill="url(#navg)"/><path d="M9 21V11h4.3a3.2 3.2 0 0 1 0 6.4H11V21H9Zm2-5.4h2.2a1.4 1.4 0 0 0 0-2.8H11v2.8ZM18 21V11h2v10h-2Z" fill="#fff"/></svg>
+    Post Analyzer
+  </div>
+  <nav class="toplinks">
+    <a href="/" class="{{if eq .Title "Home"}}active{{end}}">Home</a>
+    <a href="/fetch">Fetch Sample Posts</a>
+    <a href="/analyze" class="{{if eq .Title "Character Analysis"}}active{{end}}">Full Analysis</a>
+    <a href="/dashboard">Dashboard</a>
+  </nav>
+  <div class="header-actions">
+    <button class="icon-btn" id="themeToggle" title="Toggle theme">
+      <svg class="icon" id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke-linecap="round"/></svg>
+    </button>
+    <button class="btn primary" id="newPostBtn">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
+      New Post
+    </button>
+  </div>
+</header>
+
+<main>
+  {{if .Error}}
+  <div class="error-banner"><strong>Error:</strong> {{.Error}}</div>
+  {{end}}
+
+  {{if eq .Title "Add New Post"}}
+  <div class="hero"><h1>Add a post (no-JS form)</h1><p>The same action is available from the "New Post" button on the home page — this plain form works without JavaScript too.</p></div>
+  <div class="panel" style="max-width:560px;">
+    <form class="legacy-form" method="post" action="/add">
+      <div>
+        <label for="title">Title</label>
+        <input type="text" id="title" name="title" required>
+      </div>
+      <div>
+        <label for="body">Body</label>
+        <textarea id="body" name="body" required></textarea>
+      </div>
+      <button type="submit" class="btn primary">Add Post</button>
+    </form>
+  </div>
+
+  {{else if eq .Title "Character Analysis"}}
+  <div class="hero"><h1>Character Frequency — Full Dataset</h1><p>Computed server-side across every post currently stored, not just the ones visible on one page.</p></div>
+  <div class="panel">
+    <h2>Top 20 Characters</h2>
+    <div id="serverCharChart"></div>
+  </div>
+
+  {{else}}
+  <div class="hero">
+    <h1>{{if eq .Title "Home"}}Browse &amp; analyze your posts{{else}}{{.Title}}{{end}}</h1>
+    <p>Search, sort, create, edit, and delete posts — every action here talks to postsvc over the same RPC path the CLI and REST API use.</p>
+  </div>
+
+  <div class="toolbar">
+    <div class="search-box">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
+      <input type="text" id="searchInput" placeholder="Search title or body…">
     </div>
-    <div class="content">
-        {{if .Error}}
-        <p class="error"><strong>Error:</strong> {{.Error}}</p>
-        {{end}}
-        {{if eq .Title "Home"}}
-        <h2>Welcome to the Post Viewer and Analyzer!</h2>
-        <p>This application allows you to:</p>
-        <ul>
-            <li>Fetch posts from an external API and view them.</li>
-            <li>Analyze character frequency in the posts (calculated in your browser).</li>
-            <li>Add new posts to the existing list.</li>
-        </ul>
-        {{if .HasPosts}}
-        <h3>Recent Posts:</h3>
-        <div class="posts" id="postsContainer">
-            {{range .Posts}}
-            <div class="post-item">
-                <strong>{{.Title}}</strong>
-                <p>{{.Body}}</p>
-            </div>
-            {{end}}
-        </div>
-        {{end}}
-        {{else if eq .Title "Add New Post"}}
-        <form method="post" action="/add">
-            <div>
-                <label for="title">Title:</label>
-                <input type="text" id="title" name="title" required style="border: 1px solid black;">
-            </div>
-            <div>
-                <label for="body">Body:</label>
-                <textarea id="body" name="body" required style="border: 1px solid black;"></textarea>
-            </div>
-            <div>
-                <input type="submit" value="Add Post">
-            </div>
-        </form>
-        {{else if .HasPosts}}
-        <div class="posts" id="postsContainer">
-            <h2>Fetched Posts:</h2>
-            {{range .Posts}}
-            <div class="post-item">
-                <strong>{{.Title}}</strong>
-                <p>{{.Body}}</p>
-            </div>
-            {{end}}
-        </div>
-        {{end}}
+    <select id="sortSelect">
+      <option value="createdAt:desc">Newest first</option>
+      <option value="createdAt:asc">Oldest first</option>
+      <option value="title:asc">Title A–Z</option>
+      <option value="title:desc">Title Z–A</option>
+    </select>
+    <select id="pageSizeSelect">
+      <option value="12">12 / page</option>
+      <option value="24">24 / page</option>
+      <option value="48">48 / page</option>
+    </select>
+    <span class="result-count" id="resultCount"></span>
+  </div>
 
-        <!-- Client-side Analysis Section -->
-        <div id="analysisSection" class="analysis">
-            <h2>Character Frequency Analysis (Client-Side)</h2>
-
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-label">Total Posts</div>
-                    <div class="stat-value" id="totalPosts">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Total Characters</div>
-                    <div class="stat-value" id="totalChars">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Unique Characters</div>
-                    <div class="stat-value" id="uniqueChars">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Average Post Length</div>
-                    <div class="stat-value" id="avgLength">0</div>
-                </div>
-            </div>
-
-            <div class="char-frequency">
-                <canvas id="charFreqChart"></canvas>
-            </div>
-
-            <div style="margin-top: 20px;">
-                <h3>Top 20 Most Frequent Characters:</h3>
-                <div class="top-chars" id="topCharsList"></div>
-            </div>
-        </div>
+  <div id="postsRoot">
+    <div class="posts-grid" id="postsGrid">
+      {{range .Posts}}
+      <div class="post-card" data-static="1">
+        <div class="row-top"><h3>{{truncate .Title 70}}</h3></div>
+        <p class="body">{{truncate .Body 160}}</p>
+        <div class="meta"><span>#{{.ID}}</span><span>User {{.UserID}}</span></div>
+      </div>
+      {{end}}
     </div>
+  </div>
+  <div class="pagination hidden" id="pagination"></div>
 
-    <script>
-        let analysisChart = null;
+  <div class="panel">
+    <h2>
+      Character Frequency — This Page
+      <button class="btn" id="quickAnalyzeBtn" style="padding:5px 10px;font-size:12px;">Analyze loaded posts</button>
+    </h2>
+    <div class="stat-grid hidden" id="quickStats"></div>
+    <div id="quickChart"><p style="color:var(--text-muted);font-size:13px;">Click "Analyze loaded posts" to compute character frequency over the posts currently shown above.</p></div>
+  </div>
+  {{end}}
+</main>
 
-        function analyzeCharacters() {
-            // Get all post content from the page
-            const postItems = document.querySelectorAll('.post-item');
+<div class="modal-overlay hidden" id="modalOverlay">
+  <div class="modal" id="modalBox"></div>
+</div>
 
-            if (postItems.length === 0) {
-                alert('No posts to analyze! Please fetch posts first.');
-                return;
-            }
+<div id="toastContainer"></div>
 
-            let allText = '';
-            postItems.forEach(item => {
-                allText += item.textContent;
-            });
+<script>
+(function () {
+  "use strict";
 
-            // Calculate character frequency
-            const charFreq = {};
-            for (let char of allText) {
-                charFreq[char] = (charFreq[char] || 0) + 1;
-            }
+  // --- Theme -------------------------------------------------------
+  const root = document.documentElement;
+  const themeIcon = document.getElementById("themeIcon");
+  function applyTheme(t) {
+    if (t) root.setAttribute("data-theme", t); else root.removeAttribute("data-theme");
+    themeIcon.style.transform = t === "dark" ? "rotate(180deg)" : "rotate(0)";
+  }
+  applyTheme(localStorage.getItem("pa_theme") || "");
+  document.getElementById("themeToggle").addEventListener("click", () => {
+    const current = localStorage.getItem("pa_theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    const next = current === "dark" ? "light" : "dark";
+    localStorage.setItem("pa_theme", next);
+    applyTheme(next);
+  });
 
-            // Sort by frequency and get top 20
-            const sortedChars = Object.entries(charFreq)
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, 20);
+  // --- Toasts --------------------------------------------------------
+  function toast(message, type) {
+    const el = document.createElement("div");
+    el.className = "toast" + (type ? " " + type : "");
+    el.textContent = message;
+    document.getElementById("toastContainer").appendChild(el);
+    setTimeout(() => el.remove(), 3600);
+  }
 
-            // Calculate statistics
-            const totalChars = allText.length;
-            const uniqueChars = Object.keys(charFreq).length;
-            const totalPosts = postItems.length;
-            const avgLength = Math.round(totalChars / totalPosts);
+  // --- API helper ------------------------------------------------------
+  async function api(path, opts) {
+    opts = opts || {};
+    const headers = Object.assign({ "Content-Type": "application/json" }, opts.headers || {});
+    const resp = await fetch(path, Object.assign({}, opts, { headers }));
+    if (resp.status === 204) return null;
+    const json = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error((json && json.error && json.error.message) || ("HTTP " + resp.status));
+    return json;
+  }
 
-            // Update stats
-            document.getElementById('totalPosts').textContent = totalPosts.toLocaleString();
-            document.getElementById('totalChars').textContent = totalChars.toLocaleString();
-            document.getElementById('uniqueChars').textContent = uniqueChars.toLocaleString();
-            document.getElementById('avgLength').textContent = avgLength.toLocaleString();
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function truncate(s, n) { s = String(s); return s.length > n ? s.slice(0, n - 1) + "…" : s; }
 
-            // Update top characters list
-            const topCharsList = document.getElementById('topCharsList');
-            topCharsList.innerHTML = sortedChars.map(([char, count]) => {
-                const displayChar = char === ' ' ? 'Space' :
-                                  char === '\n' ? 'Newline' :
-                                  char === '\t' ? 'Tab' : char;
-                const percentage = ((count / totalChars) * 100).toFixed(2);
-                return `
-                    <div class="char-item">
-                        <span><strong>'${displayChar}'</strong></span>
-                        <span>${count.toLocaleString()} (${percentage}%)</span>
-                    </div>
-                `;
-            }).join('');
+  const postsRoot = document.getElementById("postsRoot");
+  if (!postsRoot) return; // Add/Analysis pages don't have the interactive grid
 
-            // Prepare chart data
-            const labels = sortedChars.map(([char]) =>
-                char === ' ' ? 'Space' :
-                char === '\n' ? '\\n' :
-                char === '\t' ? '\\t' : char
-            );
-            const data = sortedChars.map(([, count]) => count);
+  // --- State -----------------------------------------------------------
+  const state = { search: "", sortBy: "createdAt", sortOrder: "desc", page: 1, pageSize: 12 };
+  let lastPosts = [];
+  let searchDebounce = null;
 
-            // Show analysis section
-            document.getElementById('analysisSection').style.display = 'block';
+  const grid = document.getElementById("postsGrid");
+  const pagination = document.getElementById("pagination");
+  const resultCount = document.getElementById("resultCount");
 
-            // Destroy existing chart if any
-            if (analysisChart) {
-                analysisChart.destroy();
-            }
+  function skeletons() {
+    let html = '<div class="skeleton-grid">';
+    for (let i = 0; i < state.pageSize; i++) html += '<div class="skel-card"></div>';
+    return html + "</div>";
+  }
 
-            // Create chart
-            const ctx = document.getElementById('charFreqChart').getContext('2d');
-            analysisChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Character Frequency',
-                        data: data,
-                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: {
-                            title: {
-                                display: true,
-                                text: 'Characters'
-                            },
-                            grid: {
-                                display: false
-                            }
-                        },
-                        y: {
-                            title: {
-                                display: true,
-                                text: 'Frequency'
-                            },
-                            beginAtZero: true,
-                            grid: {
-                                color: 'rgba(200, 200, 200, 0.2)'
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: 'top'
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    const percentage = ((context.parsed.y / totalChars) * 100).toFixed(2);
-                                    return `Frequency: ${context.parsed.y.toLocaleString()} (${percentage}%)`;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
+  function emptyState() {
+    return '<div class="empty-state">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 10h8M8 14h5"/></svg>' +
+      "<h3>No posts yet</h3>" +
+      '<p>Create your first post, or import some sample data to get started.</p>' +
+      '<div style="display:flex;gap:8px;justify-content:center;">' +
+      '<button class="btn primary" id="emptyNewBtn">New Post</button>' +
+      '<a class="btn" href="/fetch">Fetch Sample Posts</a>' +
+      "</div></div>";
+  }
 
-            // Scroll to analysis
-            document.getElementById('analysisSection').scrollIntoView({ behavior: 'smooth' });
+  function renderCard(p) {
+    const div = document.createElement("div");
+    div.className = "post-card";
+    div.innerHTML =
+      '<div class="row-top"><h3>' + escapeHtml(truncate(p.title, 70)) + '</h3>' +
+      '<div class="card-actions">' +
+      '<button class="icon-btn" data-action="edit" title="Edit"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>' +
+      '<button class="icon-btn danger" data-action="delete" title="Delete"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>' +
+      "</div></div>" +
+      '<p class="body">' + escapeHtml(truncate(p.body, 160)) + '</p>' +
+      '<div class="meta"><span>#' + p.id + '</span><span>User ' + p.userId + '</span>' + (p.createdAt ? '<span>' + new Date(p.createdAt).toLocaleDateString() + '</span>' : '') + '</div>';
+    div.addEventListener("click", (e) => {
+      if (e.target.closest('[data-action="edit"]')) return openEditModal(p);
+      if (e.target.closest('[data-action="delete"]')) return void deletePost(p);
+      openViewModal(p);
+    });
+    return div;
+  }
+
+  async function loadPosts() {
+    grid.innerHTML = skeletons();
+    pagination.classList.add("hidden");
+    try {
+      const [sortBy, sortOrder] = state.sortBy && state.sortOrder ? [state.sortBy, state.sortOrder] : ["createdAt", "desc"];
+      const params = new URLSearchParams({
+        search: state.search, sortBy: sortBy, sortOrder: sortOrder,
+        page: state.page, pageSize: state.pageSize,
+      });
+      const res = await api("/web/posts?" + params.toString());
+      lastPosts = res.posts || [];
+      grid.innerHTML = "";
+      if (lastPosts.length === 0) {
+        grid.innerHTML = emptyState();
+        const btn = document.getElementById("emptyNewBtn");
+        if (btn) btn.addEventListener("click", () => openEditModal(null));
+      } else {
+        lastPosts.forEach((p) => grid.appendChild(renderCard(p)));
+      }
+
+      const meta = res.pagination || {};
+      const total = meta.totalItems || lastPosts.length;
+      resultCount.textContent = total.toLocaleString() + (total === 1 ? " post" : " posts");
+      renderPagination(meta);
+      resetQuickAnalysis();
+    } catch (e) {
+      grid.innerHTML = "";
+      resultCount.textContent = "";
+      toast("Failed to load posts: " + e.message, "error");
+    }
+  }
+
+  function renderPagination(meta) {
+    const totalPages = meta.totalPages || 1;
+    if (totalPages <= 1) { pagination.classList.add("hidden"); return; }
+    pagination.classList.remove("hidden");
+    pagination.innerHTML =
+      '<button class="btn" id="prevPage" ' + (meta.hasPrev ? "" : "disabled") + '>&larr; Prev</button>' +
+      '<span>Page ' + (meta.page || state.page) + ' of ' + totalPages + '</span>' +
+      '<button class="btn" id="nextPage" ' + (meta.hasNext ? "" : "disabled") + '>Next &rarr;</button>';
+    const prev = document.getElementById("prevPage");
+    const next = document.getElementById("nextPage");
+    if (prev) prev.addEventListener("click", () => { state.page = Math.max(1, state.page - 1); loadPosts(); });
+    if (next) next.addEventListener("click", () => { state.page = state.page + 1; loadPosts(); });
+  }
+
+  document.getElementById("searchInput").addEventListener("input", (e) => {
+    clearTimeout(searchDebounce);
+    const value = e.target.value;
+    searchDebounce = setTimeout(() => { state.search = value; state.page = 1; loadPosts(); }, 320);
+  });
+  document.getElementById("sortSelect").addEventListener("change", (e) => {
+    const [sortBy, sortOrder] = e.target.value.split(":");
+    state.sortBy = sortBy; state.sortOrder = sortOrder; state.page = 1; loadPosts();
+  });
+  document.getElementById("pageSizeSelect").addEventListener("change", (e) => {
+    state.pageSize = parseInt(e.target.value, 10); state.page = 1; loadPosts();
+  });
+
+  // --- Modals ------------------------------------------------------------
+  const overlay = document.getElementById("modalOverlay");
+  const modalBox = document.getElementById("modalBox");
+  function closeModal() { overlay.classList.add("hidden"); modalBox.innerHTML = ""; }
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeModal(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+  function openViewModal(p) {
+    modalBox.innerHTML =
+      "<h2>" + escapeHtml(p.title) + "</h2>" +
+      '<div class="meta-line">#' + p.id + " · User " + p.userId + (p.createdAt ? " · " + new Date(p.createdAt).toLocaleString() : "") + "</div>" +
+      '<div class="body-view">' + escapeHtml(p.body) + "</div>" +
+      '<div class="modal-actions">' +
+      '<button class="btn" id="mClose">Close</button>' +
+      '<button class="btn danger" id="mDelete">Delete</button>' +
+      '<button class="btn primary" id="mEdit">Edit</button>' +
+      "</div>";
+    overlay.classList.remove("hidden");
+    document.getElementById("mClose").addEventListener("click", closeModal);
+    document.getElementById("mDelete").addEventListener("click", () => deletePost(p));
+    document.getElementById("mEdit").addEventListener("click", () => openEditModal(p));
+  }
+
+  function openEditModal(p) {
+    const isEdit = !!p;
+    modalBox.innerHTML =
+      "<h2>" + (isEdit ? "Edit Post" : "New Post") + "</h2>" +
+      '<div class="modal-error" id="mError"></div>' +
+      '<label for="mTitle">Title</label>' +
+      '<input type="text" id="mTitle" value="' + (isEdit ? escapeHtml(p.title) : "") + '">' +
+      '<label for="mBody">Body</label>' +
+      "<textarea id=\"mBody\">" + (isEdit ? escapeHtml(p.body) : "") + "</textarea>" +
+      '<div class="modal-actions">' +
+      '<button class="btn" id="mCancel">Cancel</button>' +
+      '<button class="btn primary" id="mSave">' + (isEdit ? "Save changes" : "Create post") + "</button>" +
+      "</div>";
+    overlay.classList.remove("hidden");
+    document.getElementById("mCancel").addEventListener("click", closeModal);
+    document.getElementById("mTitle").focus();
+    document.getElementById("mSave").addEventListener("click", async () => {
+      const title = document.getElementById("mTitle").value.trim();
+      const body = document.getElementById("mBody").value.trim();
+      const errEl = document.getElementById("mError");
+      const saveBtn = document.getElementById("mSave");
+      if (!title || !body) { errEl.textContent = "Title and body are both required."; return; }
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Saving…";
+      try {
+        if (isEdit) {
+          await api("/web/posts/" + p.id, { method: "PUT", body: JSON.stringify({ title, body }) });
+          toast("Post updated", "success");
+        } else {
+          await api("/web/posts", { method: "POST", body: JSON.stringify({ title, body }) });
+          toast("Post created", "success");
         }
+        closeModal();
+        loadPosts();
+      } catch (e) {
+        errEl.textContent = e.message;
+        saveBtn.disabled = false;
+        saveBtn.textContent = isEdit ? "Save changes" : "Create post";
+      }
+    });
+  }
 
-        // If on analyze page with backend data, still use it
-        {{if .HasAnalysis}}
-        window.addEventListener('DOMContentLoaded', function() {
-            const charFreq = {{.CharFreq | toJSON}};
-            const ctx = document.getElementById('charFreqChart').getContext('2d');
-            const labels = Object.keys(charFreq).map(key => String.fromCharCode(key));
-            const data = Object.values(charFreq);
+  async function deletePost(p) {
+    if (!confirm('Delete "' + p.title + '"? This cannot be undone.')) return;
+    try {
+      await api("/web/posts/" + p.id, { method: "DELETE" });
+      toast("Post deleted", "success");
+      closeModal();
+      loadPosts();
+    } catch (e) {
+      toast("Failed to delete: " + e.message, "error");
+    }
+  }
 
-            new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Character Frequency',
-                        data: data,
-                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: {
-                            title: {
-                                display: true,
-                                text: 'Characters'
-                            },
-                            grid: {
-                                display: false
-                            }
-                        },
-                        y: {
-                            title: {
-                                display: true,
-                                text: 'Frequency'
-                            },
-                            beginAtZero: true,
-                            grid: {
-                                color: 'rgba(200, 200, 200, 0.2)'
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: 'top'
-                        }
-                    }
-                }
-            });
-        });
-        {{end}}
-    </script>
+  document.getElementById("newPostBtn").addEventListener("click", () => openEditModal(null));
+
+  // --- Quick (this-page) character analysis -------------------------------
+  function renderBars(container, items) {
+    const max = Math.max(1, ...items.map((i) => i.value));
+    container.innerHTML = "";
+    items.forEach((item) => {
+      const pct = Math.max(2, Math.round((item.value / max) * 100));
+      const row = document.createElement("div");
+      row.className = "bar-row";
+      row.innerHTML =
+        '<div class="bar-label" title="' + escapeHtml(item.label) + '">' + escapeHtml(item.label) + "</div>" +
+        '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>' +
+        '<div class="bar-value">' + item.value.toLocaleString() + "</div>";
+      container.appendChild(row);
+    });
+  }
+
+  function resetQuickAnalysis() {
+    document.getElementById("quickStats").classList.add("hidden");
+    document.getElementById("quickChart").innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Click "Analyze loaded posts" to compute character frequency over the posts currently shown above.</p>';
+  }
+
+  const quickBtn = document.getElementById("quickAnalyzeBtn");
+  if (quickBtn) quickBtn.addEventListener("click", () => {
+    if (lastPosts.length === 0) { toast("No posts loaded to analyze.", "error"); return; }
+    let allText = "";
+    lastPosts.forEach((p) => { allText += p.title + " " + p.body + " "; });
+    const freq = {};
+    for (const ch of allText) freq[ch] = (freq[ch] || 0) + 1;
+    const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 20);
+    const items = sorted.map(([ch, count]) => ({
+      label: ch === " " ? "space" : ch === "\n" ? "\\n" : ch === "\t" ? "\\t" : ch,
+      value: count,
+    }));
+    renderBars(document.getElementById("quickChart"), items);
+
+    const statGrid = document.getElementById("quickStats");
+    statGrid.classList.remove("hidden");
+    const uniqueChars = Object.keys(freq).length;
+    const avgLen = Math.round(allText.length / lastPosts.length);
+    statGrid.innerHTML =
+      '<div class="stat-tile"><div class="label">Posts analyzed</div><div class="value">' + lastPosts.length + "</div></div>" +
+      '<div class="stat-tile"><div class="label">Total characters</div><div class="value">' + allText.length.toLocaleString() + "</div></div>" +
+      '<div class="stat-tile"><div class="label">Unique characters</div><div class="value">' + uniqueChars + "</div></div>" +
+      '<div class="stat-tile"><div class="label">Avg. post length</div><div class="value">' + avgLen + "</div></div>";
+  });
+
+  document.getElementById("sortSelect").value = state.sortBy + ":" + state.sortOrder;
+  loadPosts();
+})();
+
+{{if .HasAnalysis}}
+(function () {
+  const freq = {{.CharFreq | toJSON}};
+  const CHAR_NAMES = { 32: "space", 10: "\\n", 9: "\\t" };
+  const items = Object.entries(freq)
+    .map(([code, count]) => ({ code: Number(code), count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 20)
+    .map((e) => ({ label: CHAR_NAMES[e.code] || String.fromCharCode(e.code), value: e.count }));
+  const max = Math.max(1, ...items.map((i) => i.value));
+  const container = document.getElementById("serverCharChart");
+  container.innerHTML = "";
+  items.forEach((item) => {
+    const pct = Math.max(2, Math.round((item.value / max) * 100));
+    const row = document.createElement("div");
+    row.className = "bar-row";
+    row.innerHTML =
+      '<div class="bar-label">' + item.label.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])) + '</div>' +
+      '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>' +
+      '<div class="bar-value">' + item.value.toLocaleString() + "</div>";
+    container.appendChild(row);
+  });
+})();
+{{end}}
+</script>
 </body>
 </html>

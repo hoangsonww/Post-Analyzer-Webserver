@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postsvc
+  namespace: post-analyzer
+  labels: { app: postsvc }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: postsvc }
+  template:
+    metadata:
+      labels: { app: postsvc }
+    spec:
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z postgres 5432; do echo waiting for postgres; sleep 2; done"]
+      containers:
+        - name: postsvc
+          image: post-analyzer/postsvc:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: rpc, containerPort: 9001 }
+            - { name: metrics, containerPort: 9011 }
+          envFrom:
+            - configMapRef: { name: post-analyzer-config }
+          env:
+            - { name: POSTSVC_ADDR, value: "0.0.0.0:9001" }
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: post-analyzer-secrets, key: DB_PASSWORD } }
+          readinessProbe:
+            httpGet: { path: /metrics, port: metrics }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /metrics, port: metrics }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 100m, memory: 64Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postsvc
+  namespace: post-analyzer
+spec:
+  selector: { app: postsvc }
+  ports:
+    - { name: rpc, port: 9001, targetPort: 9001 }
+    - { name: metrics, port: 9011, targetPort: 9011 }

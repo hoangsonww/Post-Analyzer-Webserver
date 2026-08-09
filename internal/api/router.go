@@ -41,6 +41,41 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (router *Router) handleV1(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
+	// Auth endpoints (unauthenticated: this is where a token is obtained)
+	if path == "/api/v1/auth/login" {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		router.api.Login(w, r)
+		return
+	}
+
+	// ML endpoints (Triton-backed)
+	if path == "/api/v1/ml/sentiment" {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		router.api.ClassifySentiment(w, r)
+		return
+	}
+
+	// Export storage endpoints (MinIO-backed)
+	if strings.HasPrefix(path, "/api/v1/exports") {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		remaining := strings.TrimPrefix(path, "/api/v1/exports")
+		if remaining == "" || remaining == "/" {
+			router.api.ListExports(w, r)
+		} else {
+			router.api.GetExport(w, r)
+		}
+		return
+	}
+
 	// Posts endpoints
 	if strings.HasPrefix(path, "/api/v1/posts") {
 		remaining := strings.TrimPrefix(path, "/api/v1/posts")
@@ -72,6 +107,17 @@ func (router *Router) handleV1(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			router.api.AnalyzePosts(w, r)
+			return
+		}
+
+		// /api/v1/posts/reanalyze — enqueues an async reanalysis job
+		// (RabbitMQ) instead of computing it inline.
+		if remaining == "/reanalyze" {
+			if r.Method != http.MethodPost {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			router.api.ReanalyzePosts(w, r)
 			return
 		}
 

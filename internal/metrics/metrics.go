@@ -100,6 +100,31 @@ var (
 		},
 		[]string{"operation"},
 	)
+
+	// Messaging metrics (Kafka/RabbitMQ/RocketMQ consumers)
+	postEventsConsumed = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "post_events_consumed_total",
+			Help: "Total number of post lifecycle events consumed from Kafka",
+		},
+		[]string{"event_type"},
+	)
+
+	reanalysisJobsProcessed = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "reanalysis_jobs_processed_total",
+			Help: "Total number of reanalysis jobs processed from RabbitMQ",
+		},
+		[]string{"status"},
+	)
+
+	notificationsDelivered = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "notifications_delivered_total",
+			Help: "Total number of scheduled notifications delivered from RocketMQ",
+		},
+		[]string{"kind"},
+	)
 )
 
 // Middleware creates a middleware for recording HTTP metrics
@@ -174,4 +199,22 @@ func RecordAnalysisOperation(duration time.Duration) {
 func RecordDBOperation(operation, status string, duration time.Duration) {
 	dbOperations.WithLabelValues(operation, status).Inc()
 	dbOperationDuration.WithLabelValues(operation).Observe(duration.Seconds())
+}
+
+// RecordPostEventConsumed records one Kafka post-event consumed by
+// cmd/analytics-consumer.
+func RecordPostEventConsumed(eventType string) {
+	postEventsConsumed.WithLabelValues(eventType).Inc()
+}
+
+// RecordReanalysisJobProcessed records one RabbitMQ reanalysis job handled
+// by cmd/reanalysis-worker.
+func RecordReanalysisJobProcessed(status string) {
+	reanalysisJobsProcessed.WithLabelValues(status).Inc()
+}
+
+// RecordNotificationDelivered records one RocketMQ notification delivered
+// by cmd/notification-consumer.
+func RecordNotificationDelivered(kind string) {
+	notificationsDelivered.WithLabelValues(kind).Inc()
 }

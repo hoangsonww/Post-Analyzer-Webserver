@@ -1,0 +1,48 @@
+# Testing-only overlay: points at the images `docker compose build`
+# already produces locally (postanalyzerwebserver-{service}:latest) and
+# forces imagePullPolicy: Never so kubelet uses the image `kind load
+# docker-image` puts on each node instead of trying (and failing) to
+# pull from a registry. Not meant to represent a real deployment target
+# — see dev/staging/prod for that.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+patches:
+  - target: { kind: Deployment, name: postsvc }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+  - target: { kind: Deployment, name: authsvc }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+  - target: { kind: Deployment, name: gateway }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+
+images:
+  - name: post-analyzer/gateway
+    newName: postanalyzerwebserver-gateway
+    newTag: latest
+  - name: post-analyzer/postsvc
+    newName: postanalyzerwebserver-postsvc
+    newTag: latest
+  - name: post-analyzer/authsvc
+    newName: postanalyzerwebserver-authsvc
+    newTag: latest

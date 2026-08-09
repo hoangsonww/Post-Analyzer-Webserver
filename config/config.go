@@ -9,11 +9,69 @@ import (
 
 // Config holds all configuration for the application
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	Security SecurityConfig
-	Logging  LoggingConfig
-	External ExternalConfig
+	Server      ServerConfig
+	Database    DatabaseConfig
+	Security    SecurityConfig
+	Logging     LoggingConfig
+	External    ExternalConfig
+	RPC         RPCConfig
+	Auth        AuthConfig
+	Redis       RedisConfig
+	Messaging   MessagingConfig
+	ObjectStore ObjectStoreConfig
+	ML          MLConfig
+}
+
+// MLConfig contains connection info for the Nvidia Triton Inference
+// Server sentiment-classification model.
+type MLConfig struct {
+	TritonURL string
+	Enabled   bool
+}
+
+// ObjectStoreConfig contains connection info for the local MinIO
+// (S3-API-compatible) object store used to persist generated exports.
+type ObjectStoreConfig struct {
+	Endpoint  string
+	AccessKey string
+	SecretKey string
+	UseSSL    bool
+	Enabled   bool
+}
+
+// MessagingConfig contains connection info for the three message brokers.
+// Each is independently enabled so a partial local stack (e.g. no
+// RocketMQ running) doesn't block the rest of the system.
+type MessagingConfig struct {
+	KafkaBrokers    []string
+	KafkaEnabled    bool
+	RabbitMQURL     string
+	RabbitMQEnabled bool
+	RocketMQNsAddrs []string
+	RocketMQEnabled bool
+}
+
+// RPCConfig contains addresses for the Kitex RPC microservices
+type RPCConfig struct {
+	PostServiceAddr string // host:port the postsvc Kitex server listens on / gateway dials
+	AuthServiceAddr string // host:port the authsvc Kitex server listens on / gateway dials
+	MuxTransport    bool   // enable Kitex connection multiplexing
+}
+
+// AuthConfig contains ABAC / JWT auth configuration
+type AuthConfig struct {
+	JWTSecret     string
+	TokenTTL      time.Duration
+	AdminUsername string
+	AdminPassword string
+}
+
+// RedisConfig contains Redis cache configuration
+type RedisConfig struct {
+	Addr     string
+	Password string
+	DB       int
+	Enabled  bool
 }
 
 // ServerConfig contains server-related configuration
@@ -104,6 +162,42 @@ func Load() (*Config, error) {
 		External: ExternalConfig{
 			JSONPlaceholderURL: getEnv("JSONPLACEHOLDER_URL", "https://jsonplaceholder.typicode.com/posts"),
 			HTTPTimeout:        getDurationEnv("HTTP_TIMEOUT", 30*time.Second),
+		},
+		RPC: RPCConfig{
+			PostServiceAddr: getEnv("POSTSVC_ADDR", "127.0.0.1:9001"),
+			AuthServiceAddr: getEnv("AUTHSVC_ADDR", "127.0.0.1:9002"),
+			MuxTransport:    getEnv("RPC_MUX", "true") == "true",
+		},
+		Auth: AuthConfig{
+			JWTSecret:     getEnv("JWT_SECRET", "dev-only-change-me-in-production"),
+			TokenTTL:      getDurationEnv("JWT_TTL", 24*time.Hour),
+			AdminUsername: getEnv("ADMIN_USERNAME", "admin"),
+			AdminPassword: getEnv("ADMIN_PASSWORD", "admin123"),
+		},
+		Redis: RedisConfig{
+			Addr:     getEnv("REDIS_ADDR", "127.0.0.1:6379"),
+			Password: getEnv("REDIS_PASSWORD", ""),
+			DB:       getIntEnv("REDIS_DB", 0),
+			Enabled:  getEnv("REDIS_ENABLED", "true") == "true",
+		},
+		Messaging: MessagingConfig{
+			KafkaBrokers:    getSliceEnv("KAFKA_BROKERS", []string{"127.0.0.1:9092"}),
+			KafkaEnabled:    getEnv("KAFKA_ENABLED", "false") == "true",
+			RabbitMQURL:     getEnv("RABBITMQ_URL", "amqp://guest:guest@127.0.0.1:5672/"),
+			RabbitMQEnabled: getEnv("RABBITMQ_ENABLED", "false") == "true",
+			RocketMQNsAddrs: getSliceEnv("ROCKETMQ_NAMESRV_ADDRS", []string{"127.0.0.1:9876"}),
+			RocketMQEnabled: getEnv("ROCKETMQ_ENABLED", "false") == "true",
+		},
+		ObjectStore: ObjectStoreConfig{
+			Endpoint:  getEnv("MINIO_ENDPOINT", "127.0.0.1:9000"),
+			AccessKey: getEnv("MINIO_ACCESS_KEY", "minioadmin"),
+			SecretKey: getEnv("MINIO_SECRET_KEY", "minioadmin"),
+			UseSSL:    getEnv("MINIO_USE_SSL", "false") == "true",
+			Enabled:   getEnv("MINIO_ENABLED", "false") == "true",
+		},
+		ML: MLConfig{
+			TritonURL: getEnv("TRITON_URL", "http://127.0.0.1:8000"),
+			Enabled:   getEnv("TRITON_ENABLED", "false") == "true",
 		},
 	}
 

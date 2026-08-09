@@ -1,0 +1,55 @@
+# Istio mesh alternative to base/ingress.yaml's plain nginx Ingress.
+# Requires Istio installed in-cluster (istioctl install) and the
+# post-analyzer namespace labeled `istio-injection=enabled`. Not required
+# for local/dev use — nginx Ingress covers that — this is what a real
+# multi-cluster mesh deployment (Istio east-west gateway + multi-primary
+# or primary-remote topology across the dev/staging/prod clusters in
+# ../overlays/) would build on: cross-cluster mTLS, locality-aware
+# routing, and the same VirtualService-based traffic splitting used for
+# canary below instead of nginx annotations.
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: post-analyzer-gateway
+  namespace: post-analyzer
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port: { number: 80, name: http, protocol: HTTP }
+      hosts: ["post-analyzer.local"]
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: gateway
+  namespace: post-analyzer
+spec:
+  hosts: ["post-analyzer.local"]
+  gateways: ["post-analyzer-gateway"]
+  http:
+    - route:
+        - destination: { host: gateway, subset: stable }
+          weight: 90
+        - destination: { host: gateway, subset: canary }
+          weight: 10
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: gateway
+  namespace: post-analyzer
+spec:
+  host: gateway
+  subsets:
+    - name: stable
+      labels: { rollouts-pod-template-hash: stable }
+    - name: canary
+      labels: { rollouts-pod-template-hash: canary }
+  trafficPolicy:
+    connectionPool:
+      http: { http2MaxRequests: 1000, maxRequestsPerConnection: 10 }
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s

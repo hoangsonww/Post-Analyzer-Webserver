@@ -89,7 +89,7 @@ func Recovery(next http.Handler) http.Handler {
 
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusInternalServerError)
-				fmt.Fprintf(w, `{"error":"Internal server error"}`)
+				_, _ = fmt.Fprintf(w, `{"error":"Internal server error"}`)
 			}
 		}()
 
@@ -194,7 +194,7 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusTooManyRequests)
-			fmt.Fprintf(w, `{"error":"Rate limit exceeded. Please try again later."}`)
+			_, _ = fmt.Fprintf(w, `{"error":"Rate limit exceeded. Please try again later."}`)
 			return
 		}
 
@@ -294,7 +294,7 @@ func Timeout(timeout time.Duration) func(http.Handler) http.Handler {
 					"timeout", timeout,
 				)
 				w.WriteHeader(http.StatusGatewayTimeout)
-				fmt.Fprintf(w, `{"error":"Request timeout"}`)
+				_, _ = fmt.Fprintf(w, `{"error":"Request timeout"}`)
 			}
 		})
 	}

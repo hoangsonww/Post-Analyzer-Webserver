@@ -7,8 +7,9 @@ on:
     branches: [ main, master ]
 
 env:
-  GO_VERSION: '1.21'
+  GO_VERSION: '1.25'
   DOCKER_IMAGE: post-analyzer
+  SERVICES: 'gateway postsvc authsvc analytics-consumer reanalysis-worker notification-consumer'
 
 jobs:
   # Linting and code quality
@@ -25,7 +26,7 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v4
+        uses: golangci/golangci-lint-action@v9
         with:
           version: latest
           args: --timeout=5m
@@ -71,8 +72,11 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
-      - name: Run tests
+      - name: Run unit tests
         run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+
+      - name: Run storage integration tests (real Postgres)
+        run: go test -tags=integration -v ./internal/storage/...
         env:
           DB_HOST: localhost
           DB_PORT: 5432
@@ -86,11 +90,15 @@ jobs:
           file: ./coverage.txt
           fail_ci_if_error: false
 
-  # Build and verify
+  # Build and verify — every service binary in the repo, not just the gateway
   build:
-    name: Build Application
+    name: Build ${{ matrix.service }}
     runs-on: ubuntu-latest
     needs: [lint, test]
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [gateway, postsvc, authsvc, analytics-consumer, reanalysis-worker, notification-consumer]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -100,23 +108,37 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - name: Build application
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Build ${{ matrix.service }}
         run: |
-          go build -v -ldflags="-w -s" -o post-analyzer main_new.go
+          go build -v -ldflags="-w -s" -o post-analyzer-${{ matrix.service }} ./cmd/${{ matrix.service }}
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: post-analyzer
-          path: post-analyzer
+          name: post-analyzer-${{ matrix.service }}
+          path: post-analyzer-${{ matrix.service }}
           retention-days: 1
 
-  # Docker build and push
+  # Docker build (and push, on main/master) — one image per service, all
+  # sharing the repo's single parameterized Dockerfile (ARG SERVICE=...).
   docker:
-    name: Build and Push Docker Image
+    name: Build ${{ matrix.service }} image
     runs-on: ubuntu-latest
     needs: [build]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [gateway, postsvc, authsvc, analytics-consumer, reanalysis-worker, notification-consumer]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -124,18 +146,44 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Always build (never push) to validate the Dockerfile/service builds
+      # cleanly. Runs on every push and PR, independent of whether Docker
+      # Hub credentials are configured — a fork/clone without those secrets
+      # must still get a working CI signal.
+      - name: Build ${{ matrix.service }} image (validation)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          build-args: |
+            SERVICE=${{ matrix.service }}
+          push: false
+          load: true
+          tags: post-analyzer-${{ matrix.service }}:ci
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+      - name: Check for Docker Hub credentials
+        id: dockerhub
+        run: |
+          if [ -n "${{ secrets.DOCKER_USERNAME }}" ] && [ -n "${{ secrets.DOCKER_PASSWORD }}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Log in to Docker Hub
+        if: steps.dockerhub.outputs.configured == 'true' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-        if: github.event_name == 'push'
 
       - name: Extract metadata
+        if: steps.dockerhub.outputs.configured == 'true'
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}
+          images: ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}-${{ matrix.service }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -144,26 +192,36 @@ jobs:
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push Docker image
+      - name: Push ${{ matrix.service }} image
+        if: steps.dockerhub.outputs.configured == 'true' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: ${{ github.event_name == 'push' }}
+          build-args: |
+            SERVICE=${{ matrix.service }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
   # Security scanning
   security:
     name: Security Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        # Pinned to a specific tag, not @master: trivy-action had a real
+        # supply-chain compromise (credential-stealing imposter commits
+        # injected into the action) that affected every floating/older ref.
+        # v0.36.0 is a verified-safe post-incident release.
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -180,7 +238,7 @@ jobs:
     name: Deploy Application
     runs-on: ubuntu-latest
     needs: [docker]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

@@ -1,0 +1,443 @@
+{
+  "info": {
+    "name": "Post Analyzer Webserver",
+    "description": "Comprehensive collection for the Post Analyzer microservices stack (gateway HTTP API). Run \"Auth > Login\" first — it saves the JWT into {{token}} for every other request.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "post-analyzer"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080", "type": "string" },
+    { "key": "token", "value": "", "type": "string" },
+    { "key": "postId", "value": "", "type": "string" },
+    { "key": "exportKey", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/health",
+            "auth": { "type": "noauth" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('reports healthy', () => pm.expect(pm.response.json().status).to.eql('healthy'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Readiness Check",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/readiness",
+            "auth": { "type": "noauth" }
+          },
+          "event": [
+            { "listen": "test", "script": { "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"] } }
+          ]
+        },
+        {
+          "name": "Prometheus Metrics",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/metrics",
+            "auth": { "type": "noauth" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login (admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('token present', () => pm.expect(body.data.token).to.be.a('string'));",
+                  "pm.environment.set('token', body.data.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login - invalid credentials (expect 401)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "auth": { "type": "noauth" },
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"wrong\"\n}" }
+          },
+          "event": [
+            { "listen": "test", "script": { "exec": ["pm.test('status 401', () => pm.response.to.have.status(401));"] } }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Posts",
+      "item": [
+        {
+          "name": "List Posts",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/posts?page=1&pageSize=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "posts"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "20" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "userId", "value": "", "disabled": true },
+                { "key": "sortBy", "value": "createdAt", "disabled": true },
+                { "key": "sortOrder", "value": "desc", "disabled": true }
+              ]
+            }
+          },
+          "event": [
+            { "listen": "test", "script": { "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"] } }
+          ]
+        },
+        {
+          "name": "Create Post",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/posts",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": 1,\n  \"title\": \"Hello from Postman\",\n  \"body\": \"Created via the Post Analyzer collection\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('has id', () => pm.expect(body.data.id).to.be.a('number'));",
+                  "pm.environment.set('postId', String(body.data.id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Post",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/posts/{{postId}}" },
+          "event": [
+            { "listen": "test", "script": { "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"] } }
+          ]
+        },
+        {
+          "name": "Update Post",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/posts/{{postId}}",
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Updated via Postman\"\n}" }
+          },
+          "event": [
+            { "listen": "test", "script": { "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"] } }
+          ]
+        },
+        {
+          "name": "Bulk Create Posts",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/posts/bulk",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"posts\": [\n    { \"userId\": 1, \"title\": \"Bulk 1\", \"body\": \"First bulk post\" },\n    { \"userId\": 1, \"title\": \"Bulk 2\", \"body\": \"Second bulk post\" }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["pm.test('status 201 or 207', () => pm.expect([201, 207]).to.include(pm.response.code));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Export Posts (JSON)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/posts/export?format=json" }
+        },
+        {
+          "name": "Export Posts (CSV)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/posts/export?format=csv" }
+        },
+        {
+          "name": "Analytics (character frequency)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/posts/analytics" },
+          "event": [
+            { "listen": "test", "script": { "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"] } }
+          ]
+        },
+        {
+          "name": "Reanalyze Posts (async, RabbitMQ)",
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/v1/posts/reanalyze" },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["pm.test('status 202 or 503', () => pm.expect([202, 503]).to.include(pm.response.code));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Post (as admin)",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/v1/posts/{{postId}}" },
+          "event": [
+            { "listen": "test", "script": { "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"] } }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Exports (MinIO)",
+      "item": [
+        {
+          "name": "List Exports",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/exports" },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json().data;",
+                  "  if (Array.isArray(data) && data.length > 0) pm.environment.set('exportKey', data[0].Key.replace('exports/', ''));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Download Export by Key",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/exports/{{exportKey}}" }
+        }
+      ]
+    },
+    {
+      "name": "ML (Triton)",
+      "item": [
+        {
+          "name": "Classify Sentiment - positive",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/ml/sentiment",
+            "body": { "mode": "raw", "raw": "{\n  \"text\": \"I love this, fantastic work\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["pm.test('status 200 or 503', () => pm.expect([200, 503]).to.include(pm.response.code));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Classify Sentiment - negative",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/ml/sentiment",
+            "body": { "mode": "raw", "raw": "{\n  \"text\": \"This is terrible and I hate it\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Admin Status",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin/status"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('has integrations block', () => pm.expect(pm.response.json().data).to.have.property('integrations'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ABAC Role Checks",
+      "description": "Deliberately placed last: each request here logs in as a specific role right before using it, so it can't shadow {{token}} for the CRUD flow above. Ends by logging back in as admin, in case anything runs after this folder.",
+      "item": [
+        {
+          "name": "Login as viewer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "auth": { "type": "noauth" },
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"viewer\",\n  \"password\": \"viewer123\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.environment.set('token', pm.response.json().data.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Viewer can read posts",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/posts" },
+          "event": [
+            { "listen": "test", "script": { "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"] } }
+          ]
+        },
+        {
+          "name": "Viewer cannot create posts (expect 403)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/posts",
+            "body": { "mode": "raw", "raw": "{\n  \"userId\": 1,\n  \"title\": \"should be denied\",\n  \"body\": \"viewer cannot write\"\n}" }
+          },
+          "event": [
+            { "listen": "test", "script": { "exec": ["pm.test('status 403', () => pm.response.to.have.status(403));"] } }
+          ]
+        },
+        {
+          "name": "Viewer cannot access admin status (expect 403)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin/status"
+          },
+          "event": [
+            { "listen": "test", "script": { "exec": ["pm.test('status 403', () => pm.response.to.have.status(403));"] } }
+          ]
+        },
+        {
+          "name": "Login as editor",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "auth": { "type": "noauth" },
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"editor\",\n  \"password\": \"editor123\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.environment.set('token', pm.response.json().data.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Editor can create a post",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/posts",
+            "body": { "mode": "raw", "raw": "{\n  \"userId\": 1,\n  \"title\": \"editor post\",\n  \"body\": \"created for the MFA-delete check below\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('postId', String(pm.response.json().data.id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Editor cannot delete without MFA header (expect 403)",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/v1/posts/{{postId}}" },
+          "event": [
+            { "listen": "test", "script": { "exec": ["pm.test('status 403', () => pm.response.to.have.status(403));"] } }
+          ]
+        },
+        {
+          "name": "Editor can delete with X-MFA-Verified: true",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "X-MFA-Verified", "value": "true" }],
+            "url": "{{baseUrl}}/api/v1/posts/{{postId}}"
+          },
+          "event": [
+            { "listen": "test", "script": { "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"] } }
+          ]
+        },
+        {
+          "name": "Re-login as admin (restore {{token}} for anything after this folder)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "auth": { "type": "noauth" },
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.environment.set('token', pm.response.json().data.token);"] }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

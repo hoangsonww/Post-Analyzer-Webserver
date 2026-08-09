@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Post Analyzer — Dashboard</title>
+<link rel="icon" href="assets/favicon.ico" type="image/x-icon"/>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-0: #f4f4f2;
+    --surface-1: #fcfcfb;
+    --surface-2: #ffffff;
+    --border: #e4e3de;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #85847c;
+    --series-1: #2a78d6; /* blue */
+    --series-2: #eb6834; /* orange */
+    --series-3: #1baf7a; /* aqua */
+    --series-4: #eda100; /* yellow */
+    --series-5: #e87ba4; /* magenta */
+    --series-6: #008300; /* green */
+    --series-7: #4a3aa7; /* violet */
+    --series-8: #e34948; /* red */
+    --seq-500: #256abf;  /* sequential blue, single-hue magnitude bars */
+    --status-good: #0ca30c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --surface-0: #121211;
+      --surface-1: #1a1a19;
+      --surface-2: #201f1d;
+      --border: #34332f;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted: #8f8e85;
+      --series-1: #3987e5;
+      --series-2: #d95926;
+      --series-3: #199e70;
+      --series-4: #c98500;
+      --series-5: #d55181;
+      --series-6: #008300;
+      --series-7: #9085e9;
+      --series-8: #e66767;
+      --seq-500: #3987e5;
+      --status-good: #0ca30c;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-0: #121211;
+    --surface-1: #1a1a19;
+    --surface-2: #201f1d;
+    --border: #34332f;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted: #8f8e85;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #008300;
+    --series-7: #9085e9;
+    --series-8: #e66767;
+    --seq-500: #3987e5;
+    --status-good: #0ca30c;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--surface-0);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 24px; background: var(--surface-2); border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  header a { color: var(--text-secondary); text-decoration: none; font-size: 13px; margin-right: 16px; }
+  header a:hover { color: var(--text-primary); }
+  #userBox { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--text-secondary); }
+  #userBox button { font-size: 12px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); cursor: pointer; }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  .hidden { display: none !important; }
+
+  #loginScreen { max-width: 360px; margin: 80px auto; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 28px; }
+  #loginScreen h2 { margin-top: 0; font-size: 16px; }
+  #loginScreen input { width: 100%; padding: 9px 10px; margin: 6px 0 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); font-size: 14px; }
+  #loginScreen label { font-size: 12px; color: var(--text-secondary); }
+  #loginScreen button { width: 100%; padding: 10px; border-radius: 6px; border: none; background: var(--series-1); color: white; font-size: 14px; cursor: pointer; }
+  #loginError { color: var(--series-8); font-size: 13px; margin-top: 8px; min-height: 1em; }
+  #loginHint { color: var(--text-muted); font-size: 12px; margin-top: 14px; line-height: 1.5; }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .stat-tile { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .stat-tile .label { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+  .stat-tile .value { font-size: 26px; font-weight: 600; }
+
+  .panel { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 20px; }
+  .panel h2 { font-size: 14px; margin: 0 0 14px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+
+  .bar-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+  .bar-row .bar-label { width: 90px; flex-shrink: 0; font-size: 12px; color: var(--text-secondary); text-align: right; font-variant-numeric: tabular-nums; }
+  .bar-row .bar-track { flex: 1; background: var(--surface-1); border-radius: 4px; height: 18px; position: relative; overflow: hidden; }
+  .bar-row .bar-fill { height: 100%; border-radius: 4px; }
+  .bar-row .bar-value { width: 44px; flex-shrink: 0; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-secondary); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
+
+  .status-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+  .status-item { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 8px 10px; background: var(--surface-1); border-radius: 6px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .status-dot.on { background: var(--status-good); }
+  .status-dot.off { background: var(--text-muted); }
+  .status-item .name { flex: 1; }
+  .status-item .state { font-size: 11px; color: var(--text-muted); }
+
+  .kv { display: grid; grid-template-columns: 140px 1fr; gap: 6px 12px; font-size: 13px; }
+  .kv dt { color: var(--text-secondary); }
+  .kv dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+  #adminPanel { border-color: var(--series-8); }
+  #adminPanel h2 { color: var(--series-8); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Post Analyzer — Dashboard</h1>
+  <div id="userBox" class="hidden">
+    <a href="/">Home</a>
+    <span id="whoami"></span>
+    <button id="logoutBtn">Log out</button>
+  </div>
+</header>
+
+<main>
+  <section id="loginScreen">
+    <h2>Sign in</h2>
+    <label>Username</label>
+    <input id="loginUser" autocomplete="username" placeholder="admin"/>
+    <label>Password</label>
+    <input id="loginPass" type="password" autocomplete="current-password" placeholder="••••••••"/>
+    <button id="loginBtn">Sign in</button>
+    <div id="loginError"></div>
+    <div id="loginHint">Demo accounts: <code>admin/admin123</code>, <code>editor/editor123</code>, <code>viewer/viewer123</code>. All authenticated roles can view this dashboard; the panel at the bottom only appears for <code>admin</code>.</div>
+  </section>
+
+  <section id="dash" class="hidden">
+    <div class="stat-grid" id="statGrid"></div>
+
+    <div class="panel">
+      <h2>Top Characters by Frequency</h2>
+      <div id="charFreqChart"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Posts per User</h2>
+      <div id="userChart"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Posts by Time of Day</h2>
+      <div id="timeChart"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Recent Posts</h2>
+      <table>
+        <thead><tr><th>ID</th><th>User</th><th>Title</th><th>Created</th></tr></thead>
+        <tbody id="postsTable"></tbody>
+      </table>
+    </div>
+
+    <div class="panel hidden" id="adminPanel">
+      <h2>Admin — System Status</h2>
+      <dl class="kv" id="adminKv"></dl>
+      <br/>
+      <div class="status-list" id="adminIntegrations"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  const CATEGORICAL = ["--series-1","--series-2","--series-3","--series-4","--series-5","--series-6","--series-7","--series-8"];
+  function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  function getToken() { return localStorage.getItem("pa_token") || ""; }
+  function getRole() { return localStorage.getItem("pa_role") || ""; }
+  function getUsername() { return localStorage.getItem("pa_username") || ""; }
+
+  async function api(path, opts) {
+    opts = opts || {};
+    const headers = Object.assign({}, opts.headers || {});
+    if (getToken()) headers["Authorization"] = "Bearer " + getToken();
+    if (opts.body) headers["Content-Type"] = "application/json";
+    const resp = await fetch(path, Object.assign({}, opts, { headers }));
+    const json = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const msg = (json && json.error && json.error.message) || ("HTTP " + resp.status);
+      throw new Error(msg);
+    }
+    return json.data;
+  }
+
+  // --- Chart: minimal horizontal bar list, one hue (magnitude ranking) ---
+  function renderMagnitudeBars(container, items, opts) {
+    opts = opts || {};
+    const max = Math.max(1, ...items.map((i) => i.value));
+    const color = opts.color || cssVar("--seq-500");
+    container.innerHTML = "";
+    items.forEach((item) => {
+      const row = document.createElement("div");
+      row.className = "bar-row";
+      const pct = Math.max(2, Math.round((item.value / max) * 100));
+      row.innerHTML =
+        '<div class="bar-label" title="' + item.label + '">' + item.label + "</div>" +
+        '<div class="bar-track"><div class="bar-fill" style="width:' + pct + "%;background:" + color + '"></div></div>' +
+        '<div class="bar-value">' + item.value.toLocaleString() + "</div>";
+      container.appendChild(row);
+    });
+  }
+
+  // --- Chart: categorical bar list, fixed hue order (identity per item) ---
+  function renderCategoricalBars(container, items) {
+    const max = Math.max(1, ...items.map((i) => i.value));
+    container.innerHTML = "";
+    items.forEach((item, i) => {
+      const color = cssVar(CATEGORICAL[i % CATEGORICAL.length]);
+      const row = document.createElement("div");
+      row.className = "bar-row";
+      const pct = Math.max(2, Math.round((item.value / max) * 100));
+      row.innerHTML =
+        '<div class="bar-label" title="' + item.label + '">' + item.label + "</div>" +
+        '<div class="bar-track"><div class="bar-fill" style="width:' + pct + "%;background:" + color + '"></div></div>' +
+        '<div class="bar-value">' + item.value.toLocaleString() + "</div>";
+      container.appendChild(row);
+    });
+  }
+
+  function statTile(label, value) {
+    const el = document.createElement("div");
+    el.className = "stat-tile";
+    el.innerHTML = '<div class="label">' + label + '</div><div class="value">' + value + "</div>";
+    return el;
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  const CHAR_NAMES = { 32: "space", 10: "\\n", 9: "\\t" };
+  function charLabel(code) {
+    code = Number(code);
+    if (CHAR_NAMES[code]) return CHAR_NAMES[code];
+    return String.fromCharCode(code);
+  }
+
+  async function loadDashboard() {
+    document.getElementById("loginScreen").classList.add("hidden");
+    document.getElementById("dash").classList.remove("hidden");
+    document.getElementById("userBox").classList.remove("hidden");
+    document.getElementById("whoami").textContent = getUsername() + " (" + getRole() + ")";
+
+    const [analytics, posts] = await Promise.all([
+      api("/api/v1/posts/analytics"),
+      api("/api/v1/posts?pageSize=10&sortBy=createdAt&sortOrder=desc"),
+    ]);
+
+    const statGrid = document.getElementById("statGrid");
+    statGrid.innerHTML = "";
+    statGrid.appendChild(statTile("Total Posts", analytics.totalPosts.toLocaleString()));
+    statGrid.appendChild(statTile("Total Characters", analytics.totalCharacters.toLocaleString()));
+    statGrid.appendChild(statTile("Unique Characters", analytics.uniqueChars.toLocaleString()));
+    const avgLen = analytics.statistics ? Math.round(analytics.statistics.averagePostLength) : 0;
+    statGrid.appendChild(statTile("Avg. Post Length", avgLen.toLocaleString() + " chars"));
+
+    const topChars = (analytics.topCharacters || []).slice(0, 15).map((c) => ({
+      label: charLabel(c.character),
+      value: c.count,
+    }));
+    renderMagnitudeBars(document.getElementById("charFreqChart"), topChars);
+
+    const perUser = analytics.statistics ? analytics.statistics.postsPerUser || {} : {};
+    const userItems = Object.keys(perUser).map((uid) => ({ label: "User " + uid, value: perUser[uid] }))
+      .sort((a, b) => b.value - a.value).slice(0, 8);
+    if (userItems.length) renderCategoricalBars(document.getElementById("userChart"), userItems);
+    else document.getElementById("userChart").innerHTML = '<p style="color:var(--text-muted);font-size:13px;">No data yet.</p>';
+
+    const timeDist = analytics.statistics ? analytics.statistics.timeDistribution || {} : {};
+    const order = ["morning", "afternoon", "evening", "night"];
+    const timeItems = order.filter((k) => timeDist[k] !== undefined).map((k) => ({
+      label: k[0].toUpperCase() + k.slice(1), value: timeDist[k],
+    }));
+    if (timeItems.length) renderCategoricalBars(document.getElementById("timeChart"), timeItems);
+    else document.getElementById("timeChart").innerHTML = '<p style="color:var(--text-muted);font-size:13px;">No data yet.</p>';
+
+    const tbody = document.getElementById("postsTable");
+    tbody.innerHTML = "";
+    (posts || []).forEach((p) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = "<td>" + p.id + "</td><td>" + p.userId + "</td><td>" + escapeHtml(p.title) + "</td><td>" + p.createdAt + "</td>";
+      tbody.appendChild(tr);
+    });
+
+    if (getRole() === "admin") {
+      try {
+        const status = await api("/api/v1/admin/status");
+        document.getElementById("adminPanel").classList.remove("hidden");
+        const kv = document.getElementById("adminKv");
+        kv.innerHTML =
+          "<dt>Environment</dt><dd>" + status.environment + "</dd>" +
+          "<dt>Uptime</dt><dd>" + status.uptime + "</dd>" +
+          "<dt>postsvc</dt><dd>" + status.rpc.postsvc + "</dd>" +
+          "<dt>authsvc</dt><dd>" + status.rpc.authsvc + "</dd>";
+        const grid = document.getElementById("adminIntegrations");
+        grid.innerHTML = "";
+        Object.keys(status.integrations).sort().forEach((name) => {
+          const on = status.integrations[name];
+          const item = document.createElement("div");
+          item.className = "status-item";
+          item.innerHTML =
+            '<span class="status-dot ' + (on ? "on" : "off") + '"></span>' +
+            '<span class="name">' + name + "</span>" +
+            '<span class="state">' + (on ? "enabled" : "disabled") + "</span>";
+          grid.appendChild(item);
+        });
+      } catch (e) {
+        // Shouldn't happen for an admin token, but don't break the rest
+        // of the dashboard if it does.
+        console.warn("admin status fetch failed", e);
+      }
+    } else {
+      document.getElementById("adminPanel").classList.add("hidden");
+    }
+  }
+
+  function showLogin(message) {
+    document.getElementById("dash").classList.add("hidden");
+    document.getElementById("userBox").classList.add("hidden");
+    document.getElementById("loginScreen").classList.remove("hidden");
+    document.getElementById("loginError").textContent = message || "";
+  }
+
+  document.getElementById("loginBtn").addEventListener("click", async () => {
+    const username = document.getElementById("loginUser").value.trim();
+    const password = document.getElementById("loginPass").value;
+    try {
+      const data = await api("/api/v1/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
+      localStorage.setItem("pa_token", data.token);
+      localStorage.setItem("pa_role", data.role);
+      localStorage.setItem("pa_username", data.username);
+      await loadDashboard();
+    } catch (e) {
+      showLogin(e.message);
+    }
+  });
+
+  document.getElementById("logoutBtn").addEventListener("click", () => {
+    localStorage.removeItem("pa_token");
+    localStorage.removeItem("pa_role");
+    localStorage.removeItem("pa_username");
+    showLogin();
+  });
+
+  if (getToken()) {
+    loadDashboard().catch((e) => showLogin(e.message));
+  } else {
+    showLogin();
+  }
+})();
+</script>
+</body>
+</html>

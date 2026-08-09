@@ -1,0 +1,149 @@
+{
+  "title": "Post Analyzer — System Overview",
+  "uid": "post-analyzer-overview",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Gateway HTTP",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "title": "HTTP Request Rate",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "targets": [
+        { "expr": "sum(rate(http_requests_total[1m])) by (method, status)", "legendFormat": "{{method}} {{status}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] }
+    },
+    {
+      "id": 3,
+      "title": "HTTP p50/p95/p99 Latency",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p99" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] }
+    },
+    {
+      "id": 4,
+      "title": "Data Layer (postsvc)",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 }
+    },
+    {
+      "id": 5,
+      "title": "DB Operations Rate",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+      "targets": [
+        { "expr": "sum(rate(db_operations_total[1m])) by (operation, status)", "legendFormat": "{{operation}} ({{status}})" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] }
+    },
+    {
+      "id": 6,
+      "title": "DB Operation Duration (p95)",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(db_operation_duration_seconds_bucket[5m])) by (le, operation))", "legendFormat": "{{operation}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] }
+    },
+    {
+      "id": 7,
+      "title": "Posts & Analysis",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 }
+    },
+    {
+      "id": 8,
+      "title": "Total Posts",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 19 },
+      "targets": [{ "expr": "posts_total" }]
+    },
+    {
+      "id": 9,
+      "title": "Posts Added (rate)",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 19 },
+      "targets": [{ "expr": "sum(rate(posts_added_total[5m]))" }],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] }
+    },
+    {
+      "id": 10,
+      "title": "Analysis Operations (rate)",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 19 },
+      "targets": [{ "expr": "sum(rate(analysis_operations_total[5m]))" }],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] }
+    },
+    {
+      "id": 11,
+      "title": "Analysis Duration (p95)",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 19 },
+      "targets": [{ "expr": "histogram_quantile(0.95, sum(rate(analysis_duration_seconds_bucket[5m])) by (le))" }],
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] }
+    },
+    {
+      "id": 12,
+      "title": "Messaging (Kafka / RabbitMQ / RocketMQ)",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 25 }
+    },
+    {
+      "id": 13,
+      "title": "Kafka: Post Events Consumed",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 26 },
+      "targets": [
+        { "expr": "sum(rate(post_events_consumed_total[1m])) by (event_type)", "legendFormat": "{{event_type}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] }
+    },
+    {
+      "id": 14,
+      "title": "RabbitMQ: Reanalysis Jobs Processed",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 26 },
+      "targets": [
+        { "expr": "sum(rate(reanalysis_jobs_processed_total[1m])) by (status)", "legendFormat": "{{status}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] }
+    },
+    {
+      "id": 15,
+      "title": "RocketMQ: Notifications Delivered",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 26 },
+      "targets": [
+        { "expr": "sum(rate(notifications_delivered_total[1m])) by (kind)", "legendFormat": "{{kind}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] }
+    }
+  ]
+}

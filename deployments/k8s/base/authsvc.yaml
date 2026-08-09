@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authsvc
+  namespace: post-analyzer
+  labels: { app: authsvc }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: authsvc }
+  template:
+    metadata:
+      labels: { app: authsvc }
+    spec:
+      containers:
+        - name: authsvc
+          image: post-analyzer/authsvc:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: rpc, containerPort: 9002 }
+            - { name: metrics, containerPort: 9012 }
+          envFrom:
+            - configMapRef: { name: post-analyzer-config }
+          env:
+            - { name: AUTHSVC_ADDR, value: "0.0.0.0:9002" }
+            - name: JWT_SECRET
+              valueFrom: { secretKeyRef: { name: post-analyzer-secrets, key: JWT_SECRET } }
+            - name: ADMIN_PASSWORD
+              valueFrom: { secretKeyRef: { name: post-analyzer-secrets, key: ADMIN_PASSWORD } }
+          readinessProbe:
+            httpGet: { path: /metrics, port: metrics }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /metrics, port: metrics }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits: { cpu: 300m, memory: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: authsvc
+  namespace: post-analyzer
+spec:
+  selector: { app: authsvc }
+  ports:
+    - { name: rpc, port: 9002, targetPort: 9002 }
+    - { name: metrics, port: 9012, targetPort: 9012 }

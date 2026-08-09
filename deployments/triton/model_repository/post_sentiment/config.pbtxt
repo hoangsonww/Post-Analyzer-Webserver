@@ -1,0 +1,25 @@
+name: "post_sentiment"
+platform: "onnxruntime_onnx"
+max_batch_size: 8
+
+input [
+  {
+    name: "input"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
+  }
+]
+
+output [
+  {
+    name: "probabilities"
+    data_type: TYPE_FP32
+    dims: [ 3 ]
+  }
+]
+
+instance_group [
+  {
+    kind: KIND_CPU
+  }
+]
