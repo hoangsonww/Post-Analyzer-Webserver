@@ -6,8 +6,11 @@
 package adapt
 
 import (
+	"net/http"
 	"time"
 
+	apperrors "Post_Analyzer_Webserver/internal/errors"
+	"Post_Analyzer_Webserver/internal/logger"
 	"Post_Analyzer_Webserver/internal/models"
 	basegen "Post_Analyzer_Webserver/kitex_gen/base"
 	postgen "Post_Analyzer_Webserver/kitex_gen/post"
@@ -127,6 +130,27 @@ func OK() *basegen.BaseResp {
 	return &basegen.BaseResp{StatusCode: 0, StatusMessage: "OK"}
 }
 
+// Err converts a Go error into a BaseResp for the RPC response. Business
+// errors already typed as *errors.AppError (not found, validation,
+// conflict, ...) carry their real HTTP status and safe, specific
+// message across the RPC boundary — StatusCode holds the HTTP status,
+// Extra["code"] the AppError's machine code — so the gateway can turn
+// them back into the exact same error it would have produced calling
+// the service in-process, instead of a blanket failure. Anything else
+// (a raw driver/network error) is never safe to echo verbatim to a
+// client, so it's flattened to a generic 500 here; the caller is
+// expected to have already logged the real err before this is built.
 func Err(err error) *basegen.BaseResp {
-	return &basegen.BaseResp{StatusCode: 1, StatusMessage: err.Error()}
+	if appErr, ok := err.(*apperrors.AppError); ok {
+		return &basegen.BaseResp{
+			StatusCode:    int32(appErr.StatusCode),
+			StatusMessage: appErr.Message,
+			Extra:         map[string]string{"code": appErr.Code},
+		}
+	}
+	// Not a business error we recognize — log the real cause server-side
+	// (this is the only place it's captured now that it's no longer
+	// echoed into StatusMessage) and return a message safe to expose.
+	logger.Error("postsvc: unclassified error", "error", err)
+	return &basegen.BaseResp{StatusCode: http.StatusInternalServerError, StatusMessage: "internal error"}
 }

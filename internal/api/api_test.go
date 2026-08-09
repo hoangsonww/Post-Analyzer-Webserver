@@ -214,6 +214,46 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 	}
 }
 
+// TestLogin_SurfacesSpecificCredentialError guards against regressing to
+// the bug where Login() discarded whatever error the auth client
+// returned and always responded with a generic "Authentication
+// required" — even for wrong/unregistered credentials, where authsvc
+// already produces a specific, safe-to-show message.
+func TestLogin_SurfacesSpecificCredentialError(t *testing.T) {
+	auth := &fakeAuthClient{loginErr: apperrors.New("UNAUTHORIZED", "invalid username or password", http.StatusUnauthorized)}
+	a := newTestAPI(newFakePostClient(), auth)
+
+	rr := doJSONRequest(t, a.Login, http.MethodPost, "/api/v1/auth/login", map[string]string{"username": "nobody", "password": "wrong"})
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "invalid username or password") {
+		t.Errorf("expected the specific credential error message in the response, got: %s", rr.Body.String())
+	}
+	if strings.Contains(rr.Body.String(), "Authentication required") {
+		t.Errorf("expected the specific message, not the generic ErrUnauthorized fallback, got: %s", rr.Body.String())
+	}
+}
+
+// TestLogin_SurfacesServiceUnavailable guards the other half of the same
+// fix: an authsvc RPC/transport failure (as opposed to bad credentials)
+// must map to 503 with a generic message, not 401 — distinguishing
+// "your password is wrong" from "the auth service is down" is the whole
+// point of returning a typed error from the RPC client instead of a
+// plain one.
+func TestLogin_SurfacesServiceUnavailable(t *testing.T) {
+	auth := &fakeAuthClient{loginErr: apperrors.New("SERVICE_UNAVAILABLE", "authentication service unavailable", http.StatusServiceUnavailable)}
+	a := newTestAPI(newFakePostClient(), auth)
+
+	rr := doJSONRequest(t, a.Login, http.MethodPost, "/api/v1/auth/login", map[string]string{"username": "admin", "password": "admin123"})
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "authentication service unavailable") {
+		t.Errorf("expected a service-unavailable message, got: %s", rr.Body.String())
+	}
+}
+
 func TestLogin_MalformedBody(t *testing.T) {
 	a := newTestAPI(newFakePostClient(), &fakeAuthClient{})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader("not json"))

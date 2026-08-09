@@ -8,6 +8,7 @@ package rpcclient
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"Post_Analyzer_Webserver/internal/adapt"
 	"Post_Analyzer_Webserver/internal/errors"
@@ -61,15 +62,34 @@ func newBase() *basegen.Base {
 	return &basegen.Base{Client: "gateway"}
 }
 
-// rpcErr turns a transport-level error or a non-OK BaseResp into a single
-// AppError. baseResp is nil-safe: pass nil when err != nil since the
-// generated response pointer may itself be nil on transport failure.
+// rpcErr turns a transport-level error or a non-OK BaseResp into a
+// single AppError. baseResp is nil-safe: pass nil when err != nil since
+// the generated response pointer may itself be nil on transport
+// failure.
+//
+// A non-OK BaseResp with a StatusCode in the 4xx range is postsvc
+// echoing back one of its own typed *errors.AppError (see
+// internal/adapt.Err) — "post not found", a validation failure, a
+// conflict — and StatusMessage is that error's real, safe-to-show
+// message, so it's reconstructed here rather than flattened to a
+// generic 500. Anything else (5xx, or an unrecognized code) stays a
+// generic internal error: postsvc already logged the real cause before
+// building that response, and the gateway shouldn't echo raw internals
+// to its own callers either.
 func rpcErr(err error, baseResp *basegen.BaseResp) error {
 	if err != nil {
 		return errors.NewInternalError(fmt.Errorf("postsvc rpc: %w", err))
 	}
 	if baseResp != nil && baseResp.StatusCode != 0 {
-		return errors.NewInternalError(fmt.Errorf("postsvc: %s", baseResp.StatusMessage))
+		status := int(baseResp.StatusCode)
+		if status < http.StatusBadRequest || status >= http.StatusInternalServerError {
+			return errors.NewInternalError(fmt.Errorf("postsvc: %s", baseResp.StatusMessage))
+		}
+		code := "ERROR"
+		if baseResp.Extra != nil && baseResp.Extra["code"] != "" {
+			code = baseResp.Extra["code"]
+		}
+		return errors.New(code, baseResp.StatusMessage, status)
 	}
 	return nil
 }

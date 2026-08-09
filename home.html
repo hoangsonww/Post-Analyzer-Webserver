@@ -326,7 +326,7 @@
     const resp = await fetch(path, Object.assign({}, opts, { headers }));
     if (resp.status === 204) return null;
     const json = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(json.error || ("HTTP " + resp.status));
+    if (!resp.ok) throw new Error((json && json.error && json.error.message) || ("HTTP " + resp.status));
     return json;
   }
 

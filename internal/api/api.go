@@ -68,7 +68,11 @@ func (a *API) Login(w http.ResponseWriter, r *http.Request) {
 
 	token, subj, err := a.authService.Login(ctx, req.Username, req.Password)
 	if err != nil {
-		a.respondError(w, r, errors.ErrUnauthorized)
+		// authsvc distinguishes "wrong credentials" (401, safe to show
+		// verbatim) from "authsvc unreachable" (503, generic message) —
+		// respondError's *errors.AppError type switch preserves that
+		// instead of flattening every login failure into one message.
+		a.respondError(w, r, err)
 		return
 	}
 

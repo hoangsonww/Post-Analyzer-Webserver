@@ -3,8 +3,10 @@ package rpcclient
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"Post_Analyzer_Webserver/internal/abac"
+	"Post_Analyzer_Webserver/internal/errors"
 
 	auth "Post_Analyzer_Webserver/kitex_gen/auth"
 	authservice "Post_Analyzer_Webserver/kitex_gen/auth/authservice"
@@ -51,13 +53,24 @@ func fromThriftSubject(s *auth.Subject) abac.Subject {
 	return abac.Subject{UserID: int(s.UserId), Username: s.Username, Role: s.Role, Attributes: s.Attributes}
 }
 
+// Login returns a typed *errors.AppError (not a plain error) so the
+// gateway's HTTP handler can tell "wrong username/password" (safe,
+// specific, worth showing the user) apart from "authsvc is unreachable"
+// (an infra problem — worth a distinct status code, but the transport
+// details shouldn't leak into the response body).
 func (c *authRPCClient) Login(ctx context.Context, username, password string) (string, abac.Subject, error) {
 	resp, err := c.cli.Login(ctx, &auth.LoginRequest{Base: newBase(), Username: username, Password: password})
 	if err != nil {
-		return "", abac.Subject{}, fmt.Errorf("authsvc rpc: %w", err)
+		appErr := errors.New("SERVICE_UNAVAILABLE", "authentication service unavailable", http.StatusServiceUnavailable)
+		appErr.Internal = fmt.Errorf("authsvc rpc: %w", err) // logged server-side only (json:"-"), never sent to the client
+		return "", abac.Subject{}, appErr
 	}
 	if resp.BaseResp != nil && resp.BaseResp.StatusCode != 0 {
-		return "", abac.Subject{}, fmt.Errorf("authsvc: %s", resp.BaseResp.StatusMessage)
+		msg := resp.BaseResp.StatusMessage
+		if msg == "" {
+			msg = "invalid username or password"
+		}
+		return "", abac.Subject{}, errors.New("UNAUTHORIZED", msg, http.StatusUnauthorized)
 	}
 	return resp.Token, fromThriftSubject(resp.Subject), nil
 }

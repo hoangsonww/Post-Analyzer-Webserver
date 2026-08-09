@@ -1,9 +1,12 @@
 package adapt
 
 import (
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
+	apperrors "Post_Analyzer_Webserver/internal/errors"
 	"Post_Analyzer_Webserver/internal/models"
 	postgen "Post_Analyzer_Webserver/kitex_gen/post"
 )
@@ -91,18 +94,49 @@ func TestModelPaginationToThrift_Nil(t *testing.T) {
 	}
 }
 
-func TestOKAndErr(t *testing.T) {
+func TestOK(t *testing.T) {
 	ok := OK()
 	if ok.StatusCode != 0 || ok.StatusMessage != "OK" {
 		t.Errorf("unexpected OK(): %+v", ok)
 	}
+}
 
-	e := Err(errFixture{})
-	if e.StatusCode == 0 {
-		t.Errorf("expected non-zero status code for Err(), got %+v", e)
+// TestErr_TypedAppError verifies a business error (*errors.AppError) —
+// "post not found", a validation failure, etc. — crosses the RPC
+// boundary with its real HTTP status, its real safe-to-show message,
+// and its machine code (carried in Extra, since BaseResp has no
+// dedicated field for it), so the gateway can turn it back into the
+// exact same error calling the service in-process would have produced.
+func TestErr_TypedAppError(t *testing.T) {
+	appErr := apperrors.NewNotFound("Post")
+	resp := Err(appErr)
+
+	if resp.StatusCode != int32(http.StatusNotFound) {
+		t.Errorf("expected StatusCode %d, got %d", http.StatusNotFound, resp.StatusCode)
 	}
-	if e.StatusMessage != "boom" {
-		t.Errorf("expected status message 'boom', got %q", e.StatusMessage)
+	if resp.StatusMessage != appErr.Message {
+		t.Errorf("expected StatusMessage %q, got %q", appErr.Message, resp.StatusMessage)
+	}
+	if resp.Extra["code"] != appErr.Code {
+		t.Errorf("expected Extra[code] %q, got %q", appErr.Code, resp.Extra["code"])
+	}
+}
+
+// TestErr_UnrecognizedErrorIsGenericAndSafe verifies a raw, untyped
+// error (a driver/network failure, not a business error the service
+// layer classified) never has its message echoed into the RPC
+// response — that could leak internal details (a SQL error, a
+// filesystem path, ...) to whatever eventually renders it. It still
+// gets logged server-side (see Err's implementation) so the cause
+// isn't lost, just not exposed.
+func TestErr_UnrecognizedErrorIsGenericAndSafe(t *testing.T) {
+	resp := Err(errFixture{})
+
+	if resp.StatusCode != int32(http.StatusInternalServerError) {
+		t.Errorf("expected StatusCode %d, got %d", http.StatusInternalServerError, resp.StatusCode)
+	}
+	if strings.Contains(resp.StatusMessage, "boom") {
+		t.Errorf("expected the raw error message to be hidden, got %q", resp.StatusMessage)
 	}
 }
 

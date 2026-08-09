@@ -225,15 +225,20 @@ func (h *Handler) webJSON(w http.ResponseWriter, status int, v interface{}) {
 	}
 }
 
-// webErrorFrom maps an error to a JSON {"error": message} body using the
-// same *errors.AppError status-code convention internal/api uses, so a
-// "post not found" surfaces as 404 rather than a blanket 500.
+// webErrorFrom maps an error to a JSON {"error":{"code","message"}} body
+// — the same shape and the same *errors.AppError status-code convention
+// internal/api's respondError uses, so a "post not found" surfaces as
+// 404 with a specific message rather than a blanket 500, and every
+// client (home.html, the dashboard, the CLI) can parse errors from any
+// backend surface the exact same way.
 func (h *Handler) webErrorFrom(w http.ResponseWriter, err error) {
 	appErr, ok := err.(*apperrors.AppError)
 	if !ok {
 		appErr = apperrors.NewInternalError(err)
 	}
-	h.webJSON(w, appErr.StatusCode, map[string]string{"error": appErr.Message})
+	h.webJSON(w, appErr.StatusCode, map[string]interface{}{
+		"error": map[string]interface{}{"code": appErr.Code, "message": appErr.Message},
+	})
 }
 
 // WebListPosts serves the post grid as JSON. Search, sort, and
