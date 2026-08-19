@@ -264,7 +264,7 @@ kind-load: docker-build
 kind-delete:
 	kind delete cluster --name post-analyzer
 
-# --- Terraform (AWS / Azure / OCI — provisioning not applied by default) ---
+# --- Terraform (AWS / Azure / OCI / GCP — provisioning not applied by default) ---
 
 ## tf-init: terraform init for a given cloud (usage: make tf-init CLOUD=aws)
 CLOUD ?= aws
@@ -275,9 +275,9 @@ tf-init:
 tf-plan:
 	cd deployments/terraform/environments/$(CLOUD) && terraform plan
 
-## tf-validate: terraform validate for every cloud module (aws, azure, oci)
+## tf-validate: terraform validate for every cloud module (aws, azure, oci, gcp)
 tf-validate:
-	@for c in aws azure oci; do \
+	@for c in aws azure oci gcp; do \
 		echo "$(GREEN)Validating $$c...$(NC)"; \
 		(cd deployments/terraform/environments/$$c && terraform init -backend=false -input=false > /dev/null && terraform validate) || exit 1; \
 	done
