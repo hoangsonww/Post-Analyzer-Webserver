@@ -351,6 +351,7 @@ flowchart LR
         T1["AWS: EKS · RDS · ElastiCache · ECR ·<br/>CloudFront (optional)"]
         T2["Azure: AKS · Postgres Flexible ·<br/>Redis Cache · ACR · Front Door (optional)"]
         T3["OCI: OKE · PSQL · OCIR<br/>(no first-party CDN — documented gap)"]
+        T4["GCP: GKE · Cloud SQL · Memorystore ·<br/>Artifact Registry · Cloud CDN (optional)"]
     end
 
     Images --> Compose
