@@ -319,7 +319,7 @@ Request DTOs (`CreatePostRequest`/`UpdatePostRequest`) are separate types from `
 
 ## Deployment topology
 
-The same six service images flow into three different deployment targets. Docker Compose is what's actually run and tested in this repo; Kubernetes and Terraform are structured and validated so a real deployment is a matter of applying them, not designing them from scratch later.
+The same six service images flow into four different cloud deployment targets. Docker Compose is what's actually run and tested in this repo; Kubernetes and Terraform are structured and validated so a real deployment is a matter of applying them, not designing them from scratch later.
 
 ```mermaid
 flowchart LR

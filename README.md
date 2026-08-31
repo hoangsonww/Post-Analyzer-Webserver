@@ -101,7 +101,7 @@ Not part of the local stack (no cloud credentials are used by this repo), but th
 | API surface | REST (OpenAPI 3.0.3, `api-docs.yaml`) + Kitex RPC + CLI + REPL + a small JSON surface backing the built-in web UI |
 | Containers | Docker, Docker Compose (17-container full stack) |
 | Orchestration | Kubernetes — Kustomize base + dev/staging/prod/local-kind overlays, Ingress, Argo Rollouts (canary/blue-green), Istio mesh manifests |
-| IaC | Terraform modules for AWS (EKS/RDS/ElastiCache/ECR/CloudFront), Azure (AKS/Postgres Flexible/Redis Cache/ACR/Front Door), OCI (OKE/PSQL/OCIR) |
+| IaC | Terraform modules for AWS (EKS/RDS/ElastiCache/ECR/CloudFront), Azure (AKS/Postgres Flexible/Redis Cache/ACR/Front Door), OCI (OKE/PSQL/OCIR), and GCP (GKE/Cloud SQL/Memorystore/Artifact Registry/Cloud CDN) |
 | CI | GitHub Actions — lint, unit + integration tests, per-service build matrix, per-service Docker image matrix, Trivy security scan |
 
 ## Messaging: why three brokers
